@@ -24,6 +24,8 @@ router.post('/create-order', auth, async (req, res) => {
         
         const order = await razorpay.orders.create(options);
         
+        console.log('Order created:', order.id, 'Amount:', order.amount);
+        
         res.json({
             success: true,
             data: {
@@ -53,22 +55,48 @@ router.post('/verify-payment', auth, async (req, res) => {
             amount
         } = req.body;
         
-        // Verify signature
-        const body = razorpay_order_id + '|' + razorpay_payment_id;
-        const expectedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body.toString())
-            .digest('hex');
+        console.log('Verifying payment:', {
+            order_id: razorpay_order_id,
+            payment_id: razorpay_payment_id,
+            amount: amount
+        });
         
-        if (expectedSignature !== razorpay_signature) {
+        // For TEST MODE - Fetch payment details from Razorpay to verify
+        let paymentDetails;
+        try {
+            paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
+            
+            console.log('Payment status:', paymentDetails.status);
+            console.log('Payment order_id:', paymentDetails.order_id);
+            
+            // Check if payment was successful
+            if (paymentDetails.status !== 'captured' && paymentDetails.status !== 'authorized') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment not successful. Status: ' + paymentDetails.status
+                });
+            }
+            
+            // Verify order ID matches
+            if (paymentDetails.order_id !== razorpay_order_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment verification failed - Order ID mismatch'
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error fetching payment:', error);
             return res.status(400).json({
                 success: false,
-                message: 'Payment verification failed'
+                message: 'Could not verify payment with Razorpay: ' + error.message
             });
         }
         
         // Payment verified - Add to wallet
         const userId = req.user.user_id;
+        
+        console.log('Adding money to wallet for user:', userId);
         
         // Get current balance
         const [wallets] = await db.query(
@@ -79,15 +107,20 @@ router.post('/verify-payment', auth, async (req, res) => {
         let currentBalance = 0;
         if (wallets.length > 0) {
             currentBalance = parseFloat(wallets[0].balance);
+            console.log('Current balance:', currentBalance);
         } else {
             // Create wallet if doesn't exist
+            console.log('Creating new wallet for user:', userId);
             await db.query(
-                'INSERT INTO wallet (user_id, balance) VALUES (?, 0)',
+                'INSERT INTO wallet (user_id, balance, created_at, updated_at) VALUES (?, 0, NOW(), NOW())',
                 [userId]
             );
         }
         
-        const newBalance = currentBalance + (amount / 100);
+        const amountToAdd = amount / 100; // Convert from paisa to rupees
+        const newBalance = currentBalance + amountToAdd;
+        
+        console.log('Adding amount:', amountToAdd, 'New balance:', newBalance);
         
         // Update wallet balance
         await db.query(
@@ -101,15 +134,17 @@ router.post('/verify-payment', auth, async (req, res) => {
             (user_id, transaction_type, amount, balance_after, description, 
             payment_method, payment_gateway_ref, status, created_at)
             VALUES (?, 'credit', ?, ?, 'Money added via Razorpay', 'Razorpay', ?, 'success', NOW())`,
-            [userId, amount / 100, newBalance, razorpay_payment_id]
+            [userId, amountToAdd, newBalance, razorpay_payment_id]
         );
+        
+        console.log('✅ Payment verified! User', userId, 'added ₹' + amountToAdd, 'New balance: ₹' + newBalance);
         
         res.json({
             success: true,
             message: 'Payment successful',
             data: {
                 new_balance: newBalance,
-                amount_added: amount / 100
+                amount_added: amountToAdd
             }
         });
         
@@ -117,7 +152,7 @@ router.post('/verify-payment', auth, async (req, res) => {
         console.error('Verify payment error:', error);
         res.status(500).json({
             success: false,
-            message: 'Payment verification failed'
+            message: 'Payment verification failed: ' + error.message
         });
     }
 });
