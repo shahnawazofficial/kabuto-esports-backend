@@ -1,0 +1,24 @@
+### Test 1: Health Check
+GET http://localhost:3000
+
+### Test 2: Register New User
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "testplayer",
+  "email": "test@kabuto.com",
+  "phone": "9876543210",
+  "password": "password123",
+  "full_name": "Test Player",
+  "bgmi_id": "5123456789"
+}
+
+### Test 3: Login User
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "testplayer",
+  "password": "password123"
+}
