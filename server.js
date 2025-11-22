@@ -31,7 +31,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ROUTES
+// ROOT ROUTE
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -41,6 +41,20 @@ app.get('/', (req, res) => {
     });
 });
 
+// ============================================
+// HEALTH CHECK ENDPOINT
+// ============================================
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        status: 'OK',
+        message: 'Server is healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
