@@ -33,40 +33,45 @@ router.get('/balance', verifyToken, async (req, res) => {
     }
 });
 
-// ROUTE: Get Transaction History
+// ROUTE: Get User Wallet Transactions (with total count + pagination)
 router.get('/transactions', verifyToken, async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 50;
-        const offset = parseInt(req.query.offset) || 0;
-        const type = req.query.type;
+        const userId = req.userId;
+        const limit = parseInt(req.query.limit, 10) || 20;   // default 20
+        const offset = parseInt(req.query.offset, 10) || 0;  // default 0
         
-        let query = `
-            SELECT * FROM wallet_transactions 
-            WHERE user_id = ?
-        `;
+        // Get transactions
+        const [transactions] = await db.query(
+            `SELECT * FROM wallet_transactions 
+             WHERE user_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT ? OFFSET ?`,
+            [userId, limit, offset]
+        );
         
-        const params = [req.userId];
+        // Get total count
+        const [countResult] = await db.query(
+            'SELECT COUNT(*) AS total FROM wallet_transactions WHERE user_id = ?',
+            [userId]
+        );
         
-        if (type) {
-            query += ' AND transaction_type = ?';
-            params.push(type);
-        }
-        
-        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-        params.push(limit, offset);
-        
-        const [transactions] = await db.query(query, params);
+        const total = countResult[0].total;
         
         res.json({
             success: true,
-            data: transactions
+            data: {
+                transactions: transactions,
+                total: total,
+                limit: limit,
+                offset: offset
+            }
         });
         
     } catch (error) {
         console.error('Get transactions error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching transactions',
+            message: 'Failed to fetch transactions',
             error: error.message
         });
     }
