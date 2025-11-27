@@ -3,10 +3,9 @@ const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
 
-
 // =====================================================
 // ROUTE: Get User Wallet  ->  GET /api/wallet
-// (uses wallet table + wallet_transactions)
+// Uses `wallet` table + `wallet_transactions`
 // =====================================================
 router.get('/', verifyToken, async (req, res) => {
     try {
@@ -48,19 +47,15 @@ router.get('/', verifyToken, async (req, res) => {
 
         const wallet = wallets[0];
 
-        // Calculate total added (credit)
-        const [addedResult] = await db.query(
-            `SELECT COALESCE(SUM(amount), 0) AS total_added
+        // 🔥 Unified totals:
+        // All positive amounts = added
+        // All negative amounts = spent (absolute value)
+        const [totals] = await db.query(
+            `SELECT 
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS total_added,
+                COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS total_spent
              FROM wallet_transactions
-             WHERE user_id = ? AND transaction_type = 'credit'`,
-            [userId]
-        );
-
-        // Calculate total spent (debit)
-        const [spentResult] = await db.query(
-            `SELECT COALESCE(SUM(amount), 0) AS total_spent
-             FROM wallet_transactions
-             WHERE user_id = ? AND transaction_type = 'debit'`,
+             WHERE user_id = ?`,
             [userId]
         );
 
@@ -70,8 +65,8 @@ router.get('/', verifyToken, async (req, res) => {
                 wallet_id: wallet.wallet_id,
                 user_id: wallet.user_id,
                 balance: parseFloat(wallet.balance),
-                total_added: parseFloat(addedResult[0].total_added),
-                total_spent: parseFloat(spentResult[0].total_spent),
+                total_added: parseFloat(totals[0].total_added || 0),
+                total_spent: parseFloat(totals[0].total_spent || 0),
                 created_at: wallet.created_at,
                 updated_at: wallet.updated_at
             }
@@ -86,10 +81,10 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-
 // =====================================================
-// ROUTE: Get Wallet Balance (OLD – still here if you need it)
+// ROUTE: Get Wallet Balance (OLD / LEGACY)
 // GET /api/wallet/balance
+// Still here if anything else uses users.wallet_balance
 // =====================================================
 router.get('/balance', verifyToken, async (req, res) => {
     try {
@@ -120,9 +115,8 @@ router.get('/balance', verifyToken, async (req, res) => {
     }
 });
 
-
 // =====================================================
-// ROUTE: Get User Wallet Transactions (with total count + pagination)
+// ROUTE: Get User Wallet Transactions
 // GET /api/wallet/transactions
 // =====================================================
 router.get('/transactions', verifyToken, async (req, res) => {
@@ -167,7 +161,6 @@ router.get('/transactions', verifyToken, async (req, res) => {
         });
     }
 });
-
 
 // =====================================================
 // ROUTE: Initiate Deposit (Razorpay)
@@ -222,11 +215,9 @@ router.post('/deposit', verifyToken, async (req, res) => {
     }
 });
 
-
 // =====================================================
 // ROUTE: Verify Payment (Razorpay Callback)
 // POST /api/wallet/verify-payment
-// (may not be used if you use /api/payment/verify-payment instead)
 // =====================================================
 router.post('/verify-payment', verifyToken, async (req, res) => {
     try {
@@ -292,7 +283,6 @@ router.post('/verify-payment', verifyToken, async (req, res) => {
         });
     }
 });
-
 
 // =====================================================
 // ROUTE: Request Withdrawal
