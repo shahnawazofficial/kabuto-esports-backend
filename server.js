@@ -7,11 +7,13 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 
-
+// Load environment variables
 dotenv.config();
 
+// Database connection
 const db = require('./config/database');
 
+// Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
@@ -23,18 +25,22 @@ const payuRoutes = require('./routes/payu');
 
 const app = express();
 
-// MIDDLEWARE
-app.use('/api/payu', payuRoutes);
+// ============================================
+// MIDDLEWARE (MUST BE BEFORE ROUTES!)
+// ============================================
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Request logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
+// ============================================
 // ROOT ROUTE
+// ============================================
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -57,7 +63,9 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// ROUTES
+// ============================================
+// API ROUTES
+// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
@@ -65,15 +73,22 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/payu', payuRoutes);
 
+// ============================================
 // ERROR HANDLING
+// ============================================
+
+// 404 Handler - Route not found
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: 'Route not found'
+        message: 'Route not found',
+        path: req.path
     });
 });
 
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('Error:', err);
     res.status(err.status || 500).json({
@@ -82,7 +97,9 @@ app.use((err, req, res, next) => {
     });
 });
 
+// ============================================
 // START SERVER
+// ============================================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
@@ -95,6 +112,9 @@ app.listen(PORT, () => {
     console.log('=================================');
 });
 
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down server...');
     db.end((err) => {
