@@ -20,7 +20,6 @@ const teamRoutes = require('./routes/teams');
 const tournamentRoutes = require('./routes/tournaments');
 const walletRoutes = require('./routes/wallet');
 const hostRoutes = require('./routes/host');
-//const paymentRoutes = require('./routes/payment');
 const payuRoutes = require('./routes/payu');
 
 const app = express();
@@ -72,8 +71,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
-//app.use('/api/payment', paymentRoutes);
-app.use('/api/payu', payuRoutes);
+app.use('/api/payu', payuRoutes);  // ← MAKE SURE THIS LINE IS HERE AND NOT COMMENTED
 
 // ============================================
 // ERROR HANDLING
