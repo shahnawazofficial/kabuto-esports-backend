@@ -22,7 +22,7 @@ const verifyToken = (req, res, next) => {
                 message: 'Invalid or expired token'
             });
         }
-        req.userId = decoded.userId;
+        req.userId = decoded.user_id;  // ✅ CHANGED: Now reads user_id
         next();
     });
 };
@@ -31,6 +31,8 @@ const verifyToken = (req, res, next) => {
 router.post('/register', async (req, res) => {
     try {
         const { username, email, phone, password, full_name, bgmi_id } = req.body;
+        
+        console.log('📝 Registration request:', { username, email, phone });
         
         if (!username || !email || !phone || !password) {
             return res.status(400).json({
@@ -59,8 +61,10 @@ router.post('/register', async (req, res) => {
             [username, email, phone, hashedPassword, full_name || null, bgmi_id || null]
         );
         
+        console.log('✅ User registered with ID:', result.insertId);
+        
         const token = jwt.sign(
-            { userId: result.insertId },
+            { user_id: result.insertId, username: username },  // ✅ CHANGED: userId → user_id
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN }
         );
@@ -77,7 +81,7 @@ router.post('/register', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Register error:', error);
+        console.error('❌ Register error:', error);
         res.status(500).json({
             success: false,
             message: 'Error registering user',
@@ -90,6 +94,8 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
+        
+        console.log('🔐 Login request for:', username);
         
         if (!username || !password) {
             return res.status(400).json({
@@ -105,6 +111,7 @@ router.post('/login', async (req, res) => {
         );
         
         if (users.length === 0) {
+            console.log('❌ User not found:', username);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -114,6 +121,7 @@ router.post('/login', async (req, res) => {
         const user = users[0];
         
         if (user.account_status !== 'active') {
+            console.log('❌ Account not active:', user.account_status);
             return res.status(403).json({
                 success: false,
                 message: `Account is ${user.account_status}`
@@ -123,6 +131,7 @@ router.post('/login', async (req, res) => {
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
         
         if (!isValidPassword) {
+            console.log('❌ Invalid password for user:', username);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -134,8 +143,10 @@ router.post('/login', async (req, res) => {
             [user.user_id]
         );
         
+        console.log('✅ Login successful - User ID:', user.user_id);
+        
         const token = jwt.sign(
-            { userId: user.user_id },
+            { user_id: user.user_id, username: user.username },  // ✅ CHANGED: userId → user_id
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN }
         );
@@ -152,7 +163,7 @@ router.post('/login', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('❌ Login error:', error);
         res.status(500).json({
             success: false,
             message: 'Error logging in',
@@ -164,12 +175,15 @@ router.post('/login', async (req, res) => {
 // ROUTE: Get Current User Profile
 router.get('/profile', verifyToken, async (req, res) => {
     try {
+        console.log('👤 Profile request for user ID:', req.userId);
+        
         const [users] = await db.query(
             'SELECT * FROM users WHERE user_id = ?',
             [req.userId]
         );
         
         if (users.length === 0) {
+            console.log('❌ User not found in profile:', req.userId);
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
@@ -179,13 +193,15 @@ router.get('/profile', verifyToken, async (req, res) => {
         const user = users[0];
         delete user.password_hash;
         
+        console.log('✅ Profile retrieved for:', user.username);
+        
         res.json({
             success: true,
             data: user
         });
         
     } catch (error) {
-        console.error('Profile error:', error);
+        console.error('❌ Profile error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching profile',
@@ -198,6 +214,8 @@ router.get('/profile', verifyToken, async (req, res) => {
 router.put('/profile', verifyToken, async (req, res) => {
     try {
         const { full_name, bio, bgmi_id, bgmi_username, date_of_birth, gender, city, state } = req.body;
+        
+        console.log('📝 Profile update for user ID:', req.userId);
         
         await db.query(
             `UPDATE users SET 
@@ -213,13 +231,15 @@ router.put('/profile', verifyToken, async (req, res) => {
             [full_name, bio, bgmi_id, bgmi_username, date_of_birth, gender, city, state, req.userId]
         );
         
+        console.log('✅ Profile updated for user ID:', req.userId);
+        
         res.json({
             success: true,
             message: 'Profile updated successfully'
         });
         
     } catch (error) {
-        console.error('Update profile error:', error);
+        console.error('❌ Update profile error:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating profile',
