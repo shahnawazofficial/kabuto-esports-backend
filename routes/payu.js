@@ -15,9 +15,9 @@ router.post('/initiate', auth, async (req, res) => {
     try {
         const { amount } = req.body;
         const userId = req.user.user_id;
-        
+
         console.log('📱 PayU initiate request - User:', userId, 'Amount:', amount);
-        
+
         // Validate amount
         if (!amount || amount <= 0) {
             return res.status(400).json({
@@ -25,25 +25,25 @@ router.post('/initiate', auth, async (req, res) => {
                 message: 'Invalid amount'
             });
         }
-        
+
         // Get user details
         const [users] = await db.query(
             'SELECT username, email, phone FROM users WHERE user_id = ?',
             [userId]
         );
-        
+
         if (users.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
         }
-        
+
         const user = users[0];
-        
+
         // Generate unique transaction ID
         const txnid = `TXN${Date.now()}${userId}`;
-        
+
         // Prepare PayU parameters
         const payuParams = {
             key: PAYU_CONFIG.merchantKey,
@@ -57,13 +57,13 @@ router.post('/initiate', auth, async (req, res) => {
             furl: `${process.env.BACKEND_URL || 'https://kabuto-esports-api.onrender.com'}/api/payu/failure`,
             salt: PAYU_CONFIG.salt
         };
-        
+
         // Generate hash
         const hash = generatePayUHash(payuParams);
-        
+
         console.log('✅ PayU payment initiated:', txnid, 'Amount:', amount);
         console.log('🔑 Hash generated successfully');
-        
+
         res.json({
             success: true,
             data: {
@@ -80,7 +80,7 @@ router.post('/initiate', auth, async (req, res) => {
                 payu_url: PAYU_CONFIG.baseUrl + '/_payment'
             }
         });
-        
+
     } catch (error) {
         console.error('❌ PayU initiate error:', error);
         res.status(500).json({
@@ -107,14 +107,14 @@ router.post('/success', async (req, res) => {
             hash,
             mihpayid
         } = req.body;
-        
+
         console.log('💳 PayU Success Callback:', {
             txnid,
             status,
             amount,
             mihpayid
         });
-        
+
         // Verify hash
         const calculatedHash = verifyPayUHash({
             key,
@@ -126,36 +126,36 @@ router.post('/success', async (req, res) => {
             status,
             salt: PAYU_CONFIG.salt
         });
-        
+
         if (calculatedHash !== hash) {
             console.error('⚠️ Hash mismatch! Possible tampering.');
             console.error('Received hash:', hash);
             console.error('Calculated hash:', calculatedHash);
             return res.status(400).send('Invalid hash');
         }
-        
+
         console.log('✅ Hash verified successfully');
-        
+
         if (status === 'success') {
             // Extract user ID from txnid (format: TXN1234567890123)
             const userIdMatch = txnid.match(/TXN\d+(\d+)$/);
             const userId = userIdMatch ? parseInt(userIdMatch[1]) : null;
-            
+
             if (!userId) {
                 console.error('❌ Invalid transaction ID format:', txnid);
                 return res.status(400).send('Invalid transaction ID');
             }
-            
+
             console.log('👤 Processing payment for user:', userId);
-            
+
             // Get current balance
             const [wallets] = await db.query(
                 'SELECT balance FROM wallet WHERE user_id = ?',
                 [userId]
             );
-            
+
             let currentBalance = 0;
-            
+
             if (wallets.length > 0) {
                 currentBalance = parseFloat(wallets[0].balance);
                 console.log('💰 Current balance:', currentBalance);
@@ -167,33 +167,44 @@ router.post('/success', async (req, res) => {
                 );
                 console.log('✅ New wallet created for user:', userId);
             }
-            
+
             const amountToAdd = parseFloat(amount);
             const newBalance = currentBalance + amountToAdd;
-            
+
             // Update wallet balance
             await db.query(
                 'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
                 [newBalance, userId]
             );
-            
+
             console.log('💰 Wallet updated - New balance:', newBalance);
-            
+
             // Record transaction in history
             await db.query(
                 `INSERT INTO wallet_transactions 
-                (user_id, transaction_type, amount, balance_after, description, 
-                payment_method, payment_gateway_ref, status, created_at)
-                VALUES (?, 'credit', ?, ?, 'Money added via PayU', 'PayU', ?, 'success', NOW())`,
-                [userId, amountToAdd, newBalance, mihpayid]
+                (user_id, transaction_type, amount, balance_before, balance_after, description, 
+                 payment_method, payment_gateway_ref, status, created_at)
+                VALUES (
+                    ?,              -- user_id
+                    'deposit',      -- transaction_type (ENUM value)
+                    ?,              -- amount
+                    ?,              -- balance_before
+                    ?,              -- balance_after
+                    'Money added via PayU',
+                    'PayU',         -- payment_method
+                    ?,              -- payment_gateway_ref (mihpayid)
+                    'completed',    -- status (ENUM value)
+                    NOW()
+                )`,
+                [userId, amountToAdd, currentBalance, newBalance, mihpayid]
             );
-            
+
             console.log('✅ Transaction recorded in database');
             console.log('🎉 PayU payment successful! User', userId, 'added ₹', amountToAdd);
         } else {
             console.log('❌ Payment status is not success:', status);
         }
-        
+
         // Return HTML response
         res.send(`
             <!DOCTYPE html>
@@ -240,7 +251,7 @@ router.post('/success', async (req, res) => {
             </body>
             </html>
         `);
-        
+
     } catch (error) {
         console.error('❌ PayU success callback error:', error);
         res.status(500).send(`
@@ -263,13 +274,13 @@ router.post('/success', async (req, res) => {
 // ============================================
 router.post('/failure', async (req, res) => {
     const { txnid, status, error_Message } = req.body;
-    
+
     console.log('❌ PayU Payment Failed:', {
         txnid,
         status,
         error: error_Message
     });
-    
+
     res.send(`
         <!DOCTYPE html>
         <html>
