@@ -3,7 +3,6 @@ const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
 
-
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
     try {
@@ -52,7 +51,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-
 // ROUTE: Get Tournament Details
 router.get('/:id', async (req, res) => {
     try {
@@ -99,15 +97,21 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-
-// ROUTE: Register for Tournament (NEW – wallet + payment_method)
+// ROUTE: Register for Tournament WITH PLAYER DETAILS
 router.post('/:tournamentId/register', verifyToken, async (req, res) => {
     try {
         const tournamentId = req.params.tournamentId;
         const userId = req.userId;
-        const { team_id, payment_method } = req.body;
+        const { team_id, registration_type, payment_method, player_details } = req.body;
 
-        console.log('Registration request:', { tournamentId, userId, team_id, payment_method });
+        console.log('📝 Registration request:', { 
+            tournamentId, 
+            userId, 
+            team_id, 
+            registration_type,
+            payment_method,
+            has_player_details: !!player_details 
+        });
 
         // Check if already registered
         const [existing] = await db.query(
@@ -138,7 +142,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
 
         const tournament = tournaments[0];
 
-        // Basic checks: status, deadline, capacity
+        // Basic checks
         if (tournament.tournament_status !== 'registration_open') {
             return res.status(400).json({
                 success: false,
@@ -160,27 +164,11 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             });
         }
 
-        // Game mode & team validation
-        if (['duo', 'squad'].includes(tournament.game_mode) && !team_id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Team ID required for team tournaments'
-            });
-        }
-
-        if (tournament.game_mode === 'solo' && team_id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Solo tournaments do not require team'
-            });
-        }
-
         const entryFee = parseFloat(tournament.registration_fee);
         const payMethod = payment_method || 'wallet';
 
         // Handle wallet payment
         if (payMethod === 'wallet') {
-            // Get user wallet (from wallet table)
             const [wallets] = await db.query(
                 'SELECT balance FROM wallet WHERE user_id = ?',
                 [userId]
@@ -201,7 +189,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                 [newBalance, userId]
             );
 
-            // Record wallet transaction (aligned with wallet.js schema)
+            // Record wallet transaction
             await db.query(
                 `INSERT INTO wallet_transactions 
                  (user_id, transaction_type, amount, balance_before, balance_after, 
@@ -218,12 +206,20 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             );
         }
 
-        // Register for tournament (keep schema like old route)
+        // ✅ Register with player details stored as JSON
         await db.query(
             `INSERT INTO tournament_registrations 
-             (tournament_id, user_id, team_id, registration_fee_paid, payment_status, registration_status)
-             VALUES (?, ?, ?, ?, 'completed', 'confirmed')`,
-            [tournamentId, userId, team_id || null, entryFee]
+             (tournament_id, user_id, team_id, registration_type, registration_fee_paid, 
+              payment_status, registration_status, player_details)
+             VALUES (?, ?, ?, ?, ?, 'completed', 'confirmed', ?)`,
+            [
+                tournamentId, 
+                userId, 
+                team_id || null, 
+                registration_type || 'solo',
+                entryFee,
+                player_details || null
+            ]
         );
 
         // Update participant count
@@ -234,7 +230,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             [tournamentId]
         );
 
-        // Optional: notification (if you want, copy from your old route)
+        // Send notification
         await db.query(
             `INSERT INTO notifications 
              (user_id, notification_type, title, message, reference_type, reference_id)
@@ -259,7 +255,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Tournament registration error:', error);
+        console.error('❌ Tournament registration error:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to register for tournament: ' + error.message
@@ -267,12 +263,12 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
     }
 });
 
-
-// ROUTE: Get My Registrations
+// ROUTE: Get My Registrations WITH PLAYER DETAILS
 router.get('/my/registrations', verifyToken, async (req, res) => {
     try {
         const [registrations] = await db.query(
-            `SELECT tr.*, t.tournament_name, t.game_mode, t.tournament_start_time,
+            `SELECT tr.*, 
+                    t.tournament_name, t.game_mode, t.tournament_start_time,
                     t.tournament_status, t.room_id, t.room_password
              FROM tournament_registrations tr
              JOIN tournaments t ON tr.tournament_id = t.tournament_id
@@ -281,9 +277,21 @@ router.get('/my/registrations', verifyToken, async (req, res) => {
             [req.userId]
         );
 
+        // Parse player_details JSON for each registration
+        const registrationsWithDetails = registrations.map(reg => {
+            if (reg.player_details) {
+                try {
+                    reg.player_details = JSON.parse(reg.player_details);
+                } catch (e) {
+                    console.error('Error parsing player_details:', e);
+                }
+            }
+            return reg;
+        });
+
         res.json({
             success: true,
-            data: registrations
+            data: registrationsWithDetails
         });
 
     } catch (error) {
@@ -295,7 +303,6 @@ router.get('/my/registrations', verifyToken, async (req, res) => {
         });
     }
 });
-
 
 // ROUTE: Get Tournament Results/Leaderboard
 router.get('/:id/results', async (req, res) => {
@@ -326,4 +333,5 @@ router.get('/:id/results', async (req, res) => {
         });
     }
 });
+
 module.exports = router;
