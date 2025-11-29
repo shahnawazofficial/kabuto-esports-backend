@@ -256,4 +256,260 @@ router.get('/dashboard/recent-registrations', verifyAdminToken, async (req, res)
     }
 });
 
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+
+// Get All Users (with search and pagination)
+router.get('/users', verifyAdminToken, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+
+        let query = `
+            SELECT 
+                u.user_id,
+                u.username,
+                u.full_name,
+                u.email,
+                u.phone_number,
+                u.created_at,
+                u.is_active,
+                w.balance as wallet_balance,
+                (SELECT COUNT(*) FROM tournament_registrations WHERE user_id = u.user_id) as total_registrations
+            FROM users u
+            LEFT JOIN wallet w ON u.user_id = w.user_id
+            WHERE 1=1
+        `;
+
+        const params = [];
+
+        if (search) {
+            query += ` AND (u.username LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? OR u.phone_number LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+
+        query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        const [users] = await db.query(query, params);
+
+        // Get total count
+        let countQuery = `SELECT COUNT(*) as total FROM users WHERE 1=1`;
+        const countParams = [];
+
+        if (search) {
+            countQuery += ` AND (username LIKE ? OR full_name LIKE ? OR email LIKE ? OR phone_number LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+
+        const [countResult] = await db.query(countQuery, countParams);
+
+        res.json({
+            success: true,
+            data: users,
+            total: countResult[0].total,
+            limit,
+            offset
+        });
+
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching users',
+            error: error.message
+        });
+    }
+});
+
+// Get User Details
+router.get('/users/:userId', verifyAdminToken, async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        // Get user info
+        const [users] = await db.query(
+            `SELECT 
+                u.*,
+                w.balance as wallet_balance
+             FROM users u
+             LEFT JOIN wallet w ON u.user_id = w.user_id
+             WHERE u.user_id = ?`,
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Get user's tournaments
+        const [tournaments] = await db.query(
+            `SELECT 
+                tr.*,
+                t.tournament_name,
+                t.tournament_status
+             FROM tournament_registrations tr
+             JOIN tournaments t ON tr.tournament_id = t.tournament_id
+             WHERE tr.user_id = ?
+             ORDER BY tr.registered_at DESC`,
+            [userId]
+        );
+
+        // Get user's transactions
+        const [transactions] = await db.query(
+            `SELECT * FROM wallet_transactions 
+             WHERE user_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT 20`,
+            [userId]
+        );
+
+        res.json({
+            success: true,
+            data: {
+                user: users[0],
+                tournaments,
+                transactions
+            }
+        });
+
+    } catch (error) {
+        console.error('Get user details error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching user details',
+            error: error.message
+        });
+    }
+});
+
+// Block/Unblock User
+router.post('/users/:userId/toggle-active', verifyAdminToken, async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        // Get current status
+        const [users] = await db.query(
+            'SELECT is_active FROM users WHERE user_id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const newStatus = !users[0].is_active;
+
+        // Update status
+        await db.query(
+            'UPDATE users SET is_active = ? WHERE user_id = ?',
+            [newStatus, userId]
+        );
+
+        console.log(`✅ User ${userId} ${newStatus ? 'activated' : 'blocked'} by admin ${req.admin.admin_id}`);
+
+        res.json({
+            success: true,
+            message: `User ${newStatus ? 'activated' : 'blocked'} successfully`,
+            data: { is_active: newStatus }
+        });
+
+    } catch (error) {
+        console.error('Toggle user active error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating user status',
+            error: error.message
+        });
+    }
+});
+
+// Add Money to User Wallet (Super Admin Only)
+router.post('/users/:userId/add-money', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    const connection = await db.getConnection();
+    
+    try {
+        const userId = req.params.userId;
+        const { amount, description } = req.body;
+
+        if (!amount || amount <= 0) {
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid amount'
+            });
+        }
+
+        await connection.beginTransaction();
+
+        // Get current balance
+        const [wallets] = await connection.query(
+            'SELECT balance FROM wallet WHERE user_id = ?',
+            [userId]
+        );
+
+        if (wallets.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({
+                success: false,
+                message: 'Wallet not found'
+            });
+        }
+
+        const balanceBefore = parseFloat(wallets[0].balance);
+        const newBalance = balanceBefore + parseFloat(amount);
+
+        // Update wallet
+        await connection.query(
+            'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
+            [newBalance, userId]
+        );
+
+        // Record transaction
+        await connection.query(
+            `INSERT INTO wallet_transactions 
+             (user_id, transaction_type, amount, balance_before, balance_after, 
+              status, payment_method, description)
+             VALUES (?, 'deposit', ?, ?, ?, 'completed', 'admin', ?)`,
+            [userId, amount, balanceBefore, newBalance, description || 'Admin credit']
+        );
+
+        await connection.commit();
+        connection.release();
+
+        console.log(`✅ Admin ${req.admin.admin_id} added ₹${amount} to user ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'Money added successfully',
+            data: {
+                old_balance: balanceBefore,
+                new_balance: newBalance,
+                amount_added: amount
+            }
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Add money error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding money',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

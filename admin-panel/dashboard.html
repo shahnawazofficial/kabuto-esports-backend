@@ -205,25 +205,130 @@
             window.location.href = 'login.html';
         }
 
-        // Load dashboard data
+        // Load dashboard data (REPLACED VERSION)
         async function loadDashboard() {
             try {
-                // This is placeholder - we'll add real API calls later
+                // Temporary loading state
                 document.getElementById('totalUsers').textContent = '...';
                 document.getElementById('totalTournaments').textContent = '...';
                 document.getElementById('activeTournaments').textContent = '...';
                 document.getElementById('totalRegistrations').textContent = '...';
 
-                document.getElementById('recentRegistrations').innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">
-                            Dashboard stats will be added in next steps
-                        </td>
-                    </tr>
-                `;
+                // ---- 1) Load stats ----
+                const statsResponse = await fetch(`${API_URL}/admin/dashboard/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (statsResponse.status === 401) {
+                    logout();
+                    return;
+                }
+
+                if (statsResponse.ok) {
+                    const statsData = await statsResponse.json();
+                    if (statsData.success && statsData.data) {
+                        document.getElementById('totalUsers').textContent =
+                            statsData.data.totalUsers ?? 0;
+                        document.getElementById('totalTournaments').textContent =
+                            statsData.data.totalTournaments ?? 0;
+                        document.getElementById('activeTournaments').textContent =
+                            statsData.data.activeTournaments ?? 0;
+                        document.getElementById('totalRegistrations').textContent =
+                            statsData.data.totalRegistrations ?? 0;
+                    } else {
+                        document.getElementById('totalUsers').textContent = '-';
+                        document.getElementById('totalTournaments').textContent = '-';
+                        document.getElementById('activeTournaments').textContent = '-';
+                        document.getElementById('totalRegistrations').textContent = '-';
+                    }
+                } else {
+                    console.error('Stats API error:', statsResponse.status);
+                }
+
+                // ---- 2) Load recent registrations ----
+                const regsResponse = await fetch(`${API_URL}/admin/dashboard/recent-registrations`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const tbody = document.getElementById('recentRegistrations');
+
+                if (regsResponse.status === 401) {
+                    logout();
+                    return;
+                }
+
+                if (regsResponse.ok) {
+                    const regsData = await regsResponse.json();
+
+                    if (regsData.success && Array.isArray(regsData.data) && regsData.data.length > 0) {
+                        tbody.innerHTML = regsData.data.map(reg => `
+                            <tr>
+                                <td>#${reg.registration_id}</td>
+                                <td>${reg.full_name || reg.username || '—'}</td>
+                                <td>${reg.tournament_name || '—'}</td>
+                                <td>
+                                    <span class="badge bg-info text-dark">
+                                        ${reg.registration_type || 'N/A'}
+                                    </span>
+                                </td>
+                                <td>₹${reg.registration_fee_paid ?? 0}</td>
+                                <td>
+                                    ${
+                                        reg.registration_status === 'confirmed'
+                                            ? '<span class="badge bg-success">Confirmed</span>'
+                                            : reg.registration_status === 'cancelled'
+                                                ? '<span class="badge bg-danger">Cancelled</span>'
+                                                : '<span class="badge bg-warning text-dark">Pending</span>'
+                                    }
+                                </td>
+                                <td>
+                                    ${
+                                        reg.registered_at
+                                            ? new Date(reg.registered_at).toLocaleString()
+                                            : '—'
+                                    }
+                                </td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    No registrations yet
+                                </td>
+                            </tr>
+                        `;
+                    }
+                } else {
+                    console.error('Recent registrations API error:', regsResponse.status);
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-danger">
+                                Failed to load registrations
+                            </td>
+                        </tr>
+                    `;
+                }
 
             } catch (error) {
                 console.error('Error loading dashboard:', error);
+                document.getElementById('totalUsers').textContent = 'Error';
+                document.getElementById('totalTournaments').textContent = 'Error';
+                document.getElementById('activeTournaments').textContent = 'Error';
+                document.getElementById('totalRegistrations').textContent = 'Error';
+                document.getElementById('recentRegistrations').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-danger">
+                            Something went wrong while loading dashboard data
+                        </td>
+                    </tr>
+                `;
             }
         }
 
