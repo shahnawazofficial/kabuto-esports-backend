@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournaments - Kabuto Esports Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page">
+    
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🎮 KABUTO ESPORTS - Admin Panel</span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="fas fa-user-shield"></i> 
+                    <span id="adminName">Admin</span>
+                    <small class="ms-2 badge bg-light text-dark" id="adminRole">Super</small>
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.html">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="users.html">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="tournaments.html">
+                            <i class="fas fa-trophy"></i> Tournaments
+                        </a>
+                    </li>
+                    <li class="nav-item" id="walletLink">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-wallet"></i> Wallet (Soon)
+                        </a>
+                    </li>
+                    <li class="nav-item" id="adminsLink">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-user-shield"></i> Admins (Soon)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>🏆 Tournament Management</h2>
+                    <button class="btn btn-primary" onclick="showCreateTournament()">
+                        <i class="fas fa-plus"></i> Create Tournament
+                    </button>
+                </div>
+
+                <!-- Filters -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <input type="text" id="searchInput" class="form-control" placeholder="🔍 Search tournaments...">
+                            </div>
+                            <div class="col-md-3">
+                                <select id="statusFilter" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="registration_open">Registration Open</option>
+                                    <option value="registration_closed">Registration Closed</option>
+                                    <option value="ongoing">Ongoing</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100" onclick="loadTournaments()">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tournaments Table -->
+                <div class="card table-card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Tournament Name</th>
+                                        <th>Mode</th>
+                                        <th>Entry Fee</th>
+                                        <th>Prize Pool</th>
+                                        <th>Registrations</th>
+                                        <th>Start Date</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tournamentsTableBody">
+                                    <tr>
+                                        <td colspan="9" class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="mt-2 text-muted">Loading tournaments...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <small class="text-muted">Showing <strong id="showingCount">0</strong> of <strong id="totalCount">0</strong> tournaments</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" id="prevBtn" onclick="previousPage()" disabled>
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" id="nextBtn" onclick="nextPage()">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Tournament Modal -->
+    <div class="modal fade" id="createTournamentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🎮 Create New Tournament</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createTournamentForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tournament Name *</label>
+                                <input type="text" class="form-control" id="tournamentName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Game Mode *</label>
+                                <select class="form-select" id="gameMode" required>
+                                    <option value="solo">Solo</option>
+                                    <option value="duo">Duo</option>
+                                    <option value="squad">Squad</option>
+                                </select>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" id="tournamentDescription" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Max Participants *</label>
+                                <input type="number" class="form-control" id="maxParticipants" required min="1">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Entry Fee (₹) *</label>
+                                <input type="number" class="form-control" id="registrationFee" required min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Total Prize Pool (₹) *</label>
+                                <input type="number" class="form-control" id="totalPrizePool" required min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">1st Prize (₹)</label>
+                                <input type="number" class="form-control" id="firstPrize" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">2nd Prize (₹)</label>
+                                <input type="number" class="form-control" id="secondPrize" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">3rd Prize (₹)</label>
+                                <input type="number" class="form-control" id="thirdPrize" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Map Name</label>
+                                <input type="text" class="form-control" id="mapName" placeholder="e.g., Erangel">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Perspective</label>
+                                <select class="form-select" id="perspective">
+                                    <option value="TPP">TPP</option>
+                                    <option value="FPP">FPP</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Registration Start *</label>
+                                <input type="datetime-local" class="form-control" id="registrationStart" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Registration End *</label>
+                                <input type="datetime-local" class="form-control" id="registrationEnd" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tournament Start Time *</label>
+                                <input type="datetime-local" class="form-control" id="tournamentStartTime" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-plus-circle"></i> Create Tournament
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Registrations Modal -->
+    <div class="modal fade" id="registrationsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📋 Tournament Registrations</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="registrationsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Details Modal -->
+    <div class="modal fade" id="roomModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🎮 Add Room Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="roomForm">
+                        <input type="hidden" id="roomTournamentId">
+                        <div class="mb-3">
+                            <label class="form-label">Room ID *</label>
+                            <input type="text" class="form-control" id="roomId" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Room Password *</label>
+                            <input type="text" class="form-control" id="roomPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-save"></i> Save Room Details
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://kabuto-esports-api.onrender.com/api';
+        let adminToken = localStorage.getItem('admin_token');
+        let adminData = JSON.parse(localStorage.getItem('admin_data') || '{}');
+        let currentPage = 0;
+        let limit = 50;
+        let totalTournaments = 0;
+
+        // Check if logged in
+        if (!adminToken) {
+            window.location.href = 'login.html';
+        }
+
+        // Display admin info
+        document.getElementById('adminName').textContent = adminData.username || 'Admin';
+        document.getElementById('adminRole').textContent = adminData.admin_role === 'super' ? 'Super Admin' : 'Secondary Admin';
+
+        // Hide super admin only features
+        if (adminData.admin_role !== 'super') {
+            document.getElementById('walletLink').style.display = 'none';
+            document.getElementById('adminsLink').style.display = 'none';
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_data');
+            window.location.href = 'login.html';
+        }
+
+        // Search on Enter
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                currentPage = 0;
+                loadTournaments();
+            }
+        });
+
+        document.getElementById('statusFilter').addEventListener('change', () => {
+            currentPage = 0;
+            loadTournaments();
+        });
+
+        // Load Tournaments
+        async function loadTournaments() {
+            try {
+                const search = document.getElementById('searchInput').value;
+                const status = document.getElementById('statusFilter').value;
+                const offset = currentPage * limit;
+
+                const response = await fetch(
+                    `${API_URL}/admin/tournaments?search=${search}&status=${status}&limit=${limit}&offset=${offset}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${adminToken}`
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (data.success) {
+                    totalTournaments = data.total;
+                    displayTournaments(data.data);
+                    updatePagination();
+                } else {
+                    alert('Error loading tournaments');
+                }
+
+            } catch (error) {
+                console.error('Load tournaments error:', error);
+                alert('Failed to load tournaments');
+            }
+        }
+
+        // Display Tournaments
+        function displayTournaments(tournaments) {
+            const tbody = document.getElementById('tournamentsTableBody');
+
+            if (tournaments.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            No tournaments found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = tournaments.map(t => `
+                <tr>
+                    <td>#${t.tournament_id}</td>
+                    <td><strong>${t.tournament_name}</strong></td>
+                    <td><span class="badge bg-info">${t.game_mode}</span></td>
+                    <td>₹${parseFloat(t.registration_fee).toFixed(0)}</td>
+                    <td>₹${parseFloat(t.total_prize_pool).toFixed(0)}</td>
+                    <td><strong>${t.total_registrations}/${t.max_participants}</strong></td>
+                    <td>${new Date(t.tournament_start_time).toLocaleDateString()}</td>
+                    <td>${getStatusBadge(t.tournament_status)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="viewRegistrations(${t.tournament_id}, '${t.tournament_name}')">
+                            <i class="fas fa-users"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="showRoomModal(${t.tournament_id})">
+                            <i class="fas fa-door-open"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning" onclick="changeStatus(${t.tournament_id})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Get Status Badge
+        function getStatusBadge(status) {
+            const badges = {
+                'registration_open': '<span class="badge bg-success">Open</span>',
+                'registration_closed': '<span class="badge bg-secondary">Closed</span>',
+                'ongoing': '<span class="badge bg-warning">Ongoing</span>',
+                'completed': '<span class="badge bg-dark">Completed</span>',
+                'cancelled': '<span class="badge bg-danger">Cancelled</span>'
+            };
+            return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+        }
+
+        // Update Pagination
+        function updatePagination() {
+            const showing = Math.min((currentPage + 1) * limit, totalTournaments);
+            document.getElementById('showingCount').textContent = showing;
+            document.getElementById('totalCount').textContent = totalTournaments;
+
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').disabled = showing >= totalTournaments;
+        }
+
+        // Pagination
+        function previousPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                loadTournaments();
+            }
+        }
+
+        function nextPage() {
+            if ((currentPage + 1) * limit < totalTournaments) {
+                currentPage++;
+                loadTournaments();
+            }
+        }
+
+        // Show Create Tournament Modal
+        function showCreateTournament() {
+            document.getElementById('createTournamentForm').reset();
+            const modal = new bootstrap.Modal(document.getElementById('createTournamentModal'));
+            modal.show();
+        }
+
+        // Create Tournament Form Submit
+        document.getElementById('createTournamentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                tournament_name: document.getElementById('tournamentName').value,
+                tournament_description: document.getElementById('tournamentDescription').value,
+                game_mode: document.getElementById('gameMode').value,
+                max_participants: parseInt(document.getElementById('maxParticipants').value),
+                registration_fee: parseFloat(document.getElementById('registrationFee').value),
+                total_prize_pool: parseFloat(document.getElementById('totalPrizePool').value),
+                first_prize: parseFloat(document.getElementById('firstPrize').value) || null,
+                second_prize: parseFloat(document.getElementById('secondPrize').value) || null,
+                third_prize: parseFloat(document.getElementById('thirdPrize').value) || null,
+                map_name: document.getElementById('mapName').value,
+                perspective: document.getElementById('perspective').value,
+                registration_start: document.getElementById('registrationStart').value,
+                registration_end: document.getElementById('registrationEnd').value,
+                tournament_start_time: document.getElementById('tournamentStartTime').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/admin/tournaments`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Tournament created successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('createTournamentModal')).hide();
+                    loadTournaments();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to create tournament');
+            }
+        });
+
+        // View Registrations
+        async function viewRegistrations(tournamentId, tournamentName) {
+            const modal = new bootstrap.Modal(document.getElementById('registrationsModal'));
+            modal.show();
+
+            document.getElementById('registrationsContent').innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/tournaments/${tournamentId}/registrations`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayRegistrations(data.data, tournamentName);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('registrationsContent').innerHTML = `
+                    <div class="alert alert-danger">Error loading registrations</div>
+                `;
+            }
+        }
+
+        // Display Registrations
+        function displayRegistrations(registrations, tournamentName) {
+            if (registrations.length === 0) {
+                document.getElementById('registrationsContent').innerHTML = `
+                    <div class="alert alert-info">No registrations yet</div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="d-flex justify-content-between mb-3">
+                    <h6>${tournamentName} - ${registrations.length} Registrations</h6>
+                    <button class="btn btn-sm btn-success" onclick="downloadRegistrations()">
+                        <i class="fas fa-download"></i> Download CSV
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>User</th>
+                                <th>Type</th>
+                                <th>Player Details</th>
+                                <th>Fee</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            registrations.forEach(reg => {
+                const details = reg.player_details;
+                let playerInfo = '-';
+
+                if (details) {
+                    if (details.registration_type === 'solo') {
+                        playerInfo = `
+                            <strong>IGN:</strong> ${details.ign}<br>
+                            <strong>ID:</strong> ${details.in_game_id}<br>
+                            <strong>Phone:</strong> ${details.whatsapp}<br>
+                            <strong>Email:</strong> ${details.email}<br>
+                            <strong>Role:</strong> ${details.role}
+                        `;
+                    } else if (details.registration_type === 'team') {
+                        playerInfo = `<strong>Team:</strong> ${details.team_name}<br>`;
+                        if (details.players) {
+                            details.players.forEach((p, i) => {
+                                playerInfo += `P${i+1}: ${p.ign} (${p.role})<br>`;
+                            });
+                        }
+                    }
+                }
+
+                html += `
+                    <tr>
+                        <td>#${reg.registration_id}</td>
+                        <td>${reg.full_name || reg.username}</td>
+                        <td><span class="badge bg-info">${reg.registration_type}</span></td>
+                        <td><small>${playerInfo}</small></td>
+                        <td>₹${reg.registration_fee_paid}</td>
+                        <td>${reg.registration_status === 'confirmed' 
+                            ? '<span class="badge bg-success">Confirmed</span>' 
+                            : '<span class="badge bg-warning">Pending</span>'}</td>
+                        <td>${new Date(reg.registered_at).toLocaleDateString()}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('registrationsContent').innerHTML = html;
+        }
+
+        // Download Registrations (placeholder)
+        function downloadRegistrations() {
+            alert('CSV download feature coming soon!');
+        }
+
+        // Show Room Modal
+        function showRoomModal(tournamentId) {
+            document.getElementById('roomTournamentId').value = tournamentId;
+            document.getElementById('roomId').value = '';
+            document.getElementById('roomPassword').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('roomModal'));
+            modal.show();
+        }
+
+        // Room Form Submit
+        document.getElementById('roomForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const tournamentId = document.getElementById('roomTournamentId').value;
+            const roomId = document.getElementById('roomId').value;
+            const roomPassword = document.getElementById('roomPassword').value;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/tournaments/${tournamentId}/room`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ room_id: roomId, room_password: roomPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Room details saved successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('roomModal')).hide();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to save room details');
+            }
+        });
+
+        // Change Status
+        async function changeStatus(tournamentId) {
+            const newStatus = prompt('Enter new status:\nregistration_open, registration_closed, ongoing, completed, cancelled');
+            
+            if (!newStatus) return;
+
+            const validStatuses = ['registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled'];
+            if (!validStatuses.includes(newStatus)) {
+                alert('Invalid status');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/tournaments/${tournamentId}/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Status updated successfully!');
+                    loadTournaments();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to update status');
+            }
+        }
+
+        // Load tournaments on page load
+        loadTournaments();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

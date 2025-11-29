@@ -823,4 +823,371 @@ router.post('/tournaments/:tournamentId/status', verifyAdminToken, async (req, r
     }
 });
 
+// ==========================================
+// WALLET MANAGEMENT (Super Admin Only)
+// ==========================================
+
+// Get All Wallet Transactions
+router.get('/wallet/transactions', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const transactionType = req.query.transaction_type || '';
+        const status = req.query.status || '';
+        const startDate = req.query.start_date || '';
+        const endDate = req.query.end_date || '';
+        const limit = parseInt(req.query.limit) || 100;
+        const offset = parseInt(req.query.offset) || 0;
+
+        let query = `
+            SELECT 
+                wt.*,
+                u.username,
+                u.full_name,
+                u.email
+            FROM wallet_transactions wt
+            JOIN users u ON wt.user_id = u.user_id
+            WHERE 1=1
+        `;
+
+        const params = [];
+
+        if (search) {
+            query += ` AND (u.username LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            params.push(searchTerm, searchTerm, searchTerm);
+        }
+
+        if (transactionType) {
+            query += ` AND wt.transaction_type = ?`;
+            params.push(transactionType);
+        }
+
+        if (status) {
+            query += ` AND wt.status = ?`;
+            params.push(status);
+        }
+
+        if (startDate) {
+            query += ` AND DATE(wt.created_at) >= ?`;
+            params.push(startDate);
+        }
+
+        if (endDate) {
+            query += ` AND DATE(wt.created_at) <= ?`;
+            params.push(endDate);
+        }
+
+        query += ` ORDER BY wt.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        const [transactions] = await db.query(query, params);
+
+        // Get total count
+        let countQuery = `
+            SELECT COUNT(*) as total 
+            FROM wallet_transactions wt
+            JOIN users u ON wt.user_id = u.user_id
+            WHERE 1=1
+        `;
+        const countParams = [];
+
+        if (search) {
+            countQuery += ` AND (u.username LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            countParams.push(searchTerm, searchTerm, searchTerm);
+        }
+
+        if (transactionType) {
+            countQuery += ` AND wt.transaction_type = ?`;
+            countParams.push(transactionType);
+        }
+
+        if (status) {
+            countQuery += ` AND wt.status = ?`;
+            countParams.push(status);
+        }
+
+        if (startDate) {
+            countQuery += ` AND DATE(wt.created_at) >= ?`;
+            countParams.push(startDate);
+        }
+
+        if (endDate) {
+            countQuery += ` AND DATE(wt.created_at) <= ?`;
+            countParams.push(endDate);
+        }
+
+        const [countResult] = await db.query(countQuery, countParams);
+
+        res.json({
+            success: true,
+            data: transactions,
+            total: countResult[0].total,
+            limit,
+            offset
+        });
+
+    } catch (error) {
+        console.error('Get transactions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching transactions',
+            error: error.message
+        });
+    }
+});
+
+// Get Wallet Statistics
+router.get('/wallet/stats', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        // Total wallet balance across all users
+        const [totalBalance] = await db.query(
+            'SELECT COALESCE(SUM(balance), 0) as total FROM wallet'
+        );
+
+        // Total deposits
+        const [totalDeposits] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'deposit' AND status = 'completed'`
+        );
+
+        // Total withdrawals
+        const [totalWithdrawals] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'withdrawal' AND status = 'completed'`
+        );
+
+        // Total tournament entries revenue
+        const [totalRevenue] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'tournament_entry' AND status = 'completed'`
+        );
+
+        // Total refunds
+        const [totalRefunds] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'refund' AND status = 'completed'`
+        );
+
+        // Pending transactions
+        const [pendingTransactions] = await db.query(
+            `SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total
+             FROM wallet_transactions 
+             WHERE status = 'pending'`
+        );
+
+        // Today's revenue
+        const [todayRevenue] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'tournament_entry' 
+             AND status = 'completed'
+             AND DATE(created_at) = CURDATE()`
+        );
+
+        // This month's revenue
+        const [monthRevenue] = await db.query(
+            `SELECT COALESCE(SUM(amount), 0) as total 
+             FROM wallet_transactions 
+             WHERE transaction_type = 'tournament_entry' 
+             AND status = 'completed'
+             AND YEAR(created_at) = YEAR(CURDATE())
+             AND MONTH(created_at) = MONTH(CURDATE())`
+        );
+
+        res.json({
+            success: true,
+            data: {
+                totalWalletBalance: totalBalance[0].total,
+                totalDeposits: totalDeposits[0].total,
+                totalWithdrawals: totalWithdrawals[0].total,
+                totalRevenue: totalRevenue[0].total,
+                totalRefunds: totalRefunds[0].total,
+                pendingTransactions: {
+                    count: pendingTransactions[0].count,
+                    amount: pendingTransactions[0].total
+                },
+                todayRevenue: todayRevenue[0].total,
+                monthRevenue: monthRevenue[0].total
+            }
+        });
+
+    } catch (error) {
+        console.error('Get wallet stats error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching wallet statistics',
+            error: error.message
+        });
+    }
+});
+
+// Manual Refund (Super Admin Only)
+router.post('/wallet/refund', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    const connection = await db.getConnection();
+    
+    try {
+        const { user_id, amount, description } = req.body;
+
+        if (!amount || amount <= 0) {
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid amount'
+            });
+        }
+
+        await connection.beginTransaction();
+
+        // Get current balance
+        const [wallets] = await connection.query(
+            'SELECT balance FROM wallet WHERE user_id = ?',
+            [user_id]
+        );
+
+        if (wallets.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({
+                success: false,
+                message: 'Wallet not found'
+            });
+        }
+
+        const balanceBefore = parseFloat(wallets[0].balance);
+        const newBalance = balanceBefore + parseFloat(amount);
+
+        // Update wallet
+        await connection.query(
+            'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
+            [newBalance, user_id]
+        );
+
+        // Record transaction
+        await connection.query(
+            `INSERT INTO wallet_transactions 
+             (user_id, transaction_type, amount, balance_before, balance_after, 
+              status, payment_method, description)
+             VALUES (?, 'refund', ?, ?, ?, 'completed', 'admin', ?)`,
+            [user_id, amount, balanceBefore, newBalance, description || 'Admin refund']
+        );
+
+        await connection.commit();
+        connection.release();
+
+        console.log(`✅ Admin ${req.admin.admin_id} refunded ₹${amount} to user ${user_id}`);
+
+        res.json({
+            success: true,
+            message: 'Refund processed successfully',
+            data: {
+                old_balance: balanceBefore,
+                new_balance: newBalance,
+                refund_amount: amount
+            }
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Refund error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error processing refund',
+            error: error.message
+        });
+    }
+});
+
+// Deduct Money from Wallet (Super Admin Only)
+router.post('/wallet/deduct', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    const connection = await db.getConnection();
+    
+    try {
+        const { user_id, amount, description } = req.body;
+
+        if (!amount || amount <= 0) {
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid amount'
+            });
+        }
+
+        await connection.beginTransaction();
+
+        // Get current balance
+        const [wallets] = await connection.query(
+            'SELECT balance FROM wallet WHERE user_id = ?',
+            [user_id]
+        );
+
+        if (wallets.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({
+                success: false,
+                message: 'Wallet not found'
+            });
+        }
+
+        const balanceBefore = parseFloat(wallets[0].balance);
+
+        if (balanceBefore < parseFloat(amount)) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: 'Insufficient balance'
+            });
+        }
+
+        const newBalance = balanceBefore - parseFloat(amount);
+
+        // Update wallet
+        await connection.query(
+            'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
+            [newBalance, user_id]
+        );
+
+        // Record transaction
+        await connection.query(
+            `INSERT INTO wallet_transactions 
+             (user_id, transaction_type, amount, balance_before, balance_after, 
+              status, payment_method, description)
+             VALUES (?, 'withdrawal', ?, ?, ?, 'completed', 'admin', ?)`,
+            [user_id, amount, balanceBefore, newBalance, description || 'Admin deduction']
+        );
+
+        await connection.commit();
+        connection.release();
+
+        console.log(`✅ Admin ${req.admin.admin_id} deducted ₹${amount} from user ${user_id}`);
+
+        res.json({
+            success: true,
+            message: 'Amount deducted successfully',
+            data: {
+                old_balance: balanceBefore,
+                new_balance: newBalance,
+                deducted_amount: amount
+            }
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Deduct money error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deducting money',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
