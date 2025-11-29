@@ -21,6 +21,7 @@ const tournamentRoutes = require('./routes/tournaments');
 const walletRoutes = require('./routes/wallet');
 const hostRoutes = require('./routes/host');
 const payuRoutes = require('./routes/payu');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -72,6 +73,8 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
 app.use('/api/payu', payuRoutes);  // ← MAKE SURE THIS LINE IS HERE AND NOT COMMENTED
+app.use('/api/admin', adminRoutes);
+
 
 // ============================================
 // ERROR HANDLING
