@@ -112,6 +112,7 @@ router.post('/success', async (req, res) => {
             txnid,
             status,
             amount,
+            productinfo,
             mihpayid
         });
 
@@ -148,59 +149,149 @@ router.post('/success', async (req, res) => {
 
             console.log('👤 Processing payment for user:', userId);
 
-            // Get current balance
-            const [wallets] = await db.query(
-                'SELECT balance FROM wallet WHERE user_id = ?',
-                [userId]
-            );
+            // ✅ CHECK IF THIS IS A TOURNAMENT REGISTRATION OR WALLET ADD MONEY
+            const isTournamentPayment = productinfo.includes('Tournament Registration');
 
-            let currentBalance = 0;
+            if (isTournamentPayment) {
+                // =============================================
+                // TOURNAMENT REGISTRATION PAYMENT
+                // =============================================
+                console.log('🏆 Tournament registration payment detected');
 
-            if (wallets.length > 0) {
-                currentBalance = parseFloat(wallets[0].balance);
-                console.log('💰 Current balance:', currentBalance);
+                const connection = await db.getConnection();
+
+                try {
+                    await connection.beginTransaction();
+
+                    // Find the pending registration for this user
+                    const [pendingRegs] = await connection.query(
+                        `SELECT * FROM tournament_registrations 
+                         WHERE user_id = ? AND payment_status = 'pending' 
+                         ORDER BY registered_at DESC LIMIT 1`,
+                        [userId]
+                    );
+
+                    if (pendingRegs.length === 0) {
+                        await connection.rollback();
+                        connection.release();
+                        console.error('❌ No pending registration found for user:', userId);
+                        return res.status(400).send('No pending registration found');
+                    }
+
+                    const registration = pendingRegs[0];
+                    const tournamentId = registration.tournament_id;
+
+                    console.log('📝 Found pending registration:', registration.registration_id);
+
+                    // Update registration to confirmed
+                    await connection.query(
+                        `UPDATE tournament_registrations 
+                         SET payment_status = 'completed', 
+                             registration_status = 'confirmed',
+                             payment_gateway_ref = ?
+                         WHERE registration_id = ?`,
+                        [mihpayid, registration.registration_id]
+                    );
+
+                    // Update tournament participant count
+                    await connection.query(
+                        `UPDATE tournaments 
+                         SET current_participants = current_participants + 1 
+                         WHERE tournament_id = ?`,
+                        [tournamentId]
+                    );
+
+                    // Get tournament details for notification
+                    const [tournaments] = await connection.query(
+                        'SELECT tournament_name FROM tournaments WHERE tournament_id = ?',
+                        [tournamentId]
+                    );
+
+                    // Send notification
+                    await connection.query(
+                        `INSERT INTO notifications 
+                         (user_id, notification_type, title, message, reference_type, reference_id)
+                         VALUES (?, 'tournament_registration', 'Registration Successful', ?, 'tournament', ?)`,
+                        [
+                            userId,
+                            `Successfully registered for ${tournaments[0].tournament_name}`,
+                            tournamentId
+                        ]
+                    );
+
+                    await connection.commit();
+                    connection.release();
+
+                    console.log('✅ Tournament registration confirmed!');
+                    console.log('🎉 PayU payment successful! User', userId, 'registered for tournament', tournamentId);
+
+                } catch (error) {
+                    await connection.rollback();
+                    connection.release();
+                    throw error;
+                }
+
             } else {
-                // Create wallet if doesn't exist
-                await db.query(
-                    'INSERT INTO wallet (user_id, balance, created_at, updated_at) VALUES (?, 0, NOW(), NOW())',
+                // =============================================
+                // WALLET ADD MONEY
+                // =============================================
+                console.log('💰 Wallet add money payment detected');
+
+                // Get current balance
+                const [wallets] = await db.query(
+                    'SELECT balance FROM wallet WHERE user_id = ?',
                     [userId]
                 );
-                console.log('✅ New wallet created for user:', userId);
+
+                let currentBalance = 0;
+
+                if (wallets.length > 0) {
+                    currentBalance = parseFloat(wallets[0].balance);
+                    console.log('💰 Current balance:', currentBalance);
+                } else {
+                    // Create wallet if doesn't exist
+                    await db.query(
+                        'INSERT INTO wallet (user_id, balance, created_at, updated_at) VALUES (?, 0, NOW(), NOW())',
+                        [userId]
+                    );
+                    console.log('✅ New wallet created for user:', userId);
+                }
+
+                const amountToAdd = parseFloat(amount);
+                const newBalance = currentBalance + amountToAdd;
+
+                // Update wallet balance
+                await db.query(
+                    'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
+                    [newBalance, userId]
+                );
+
+                console.log('💰 Wallet updated - New balance:', newBalance);
+
+                // Record transaction in history
+                await db.query(
+                    `INSERT INTO wallet_transactions 
+                    (user_id, transaction_type, amount, balance_before, balance_after, description, 
+                     payment_method, payment_gateway_ref, status, created_at)
+                    VALUES (
+                        ?,              -- user_id
+                        'deposit',      -- transaction_type (ENUM value)
+                        ?,              -- amount
+                        ?,              -- balance_before
+                        ?,              -- balance_after
+                        'Money added via PayU',
+                        'PayU',         -- payment_method
+                        ?,              -- payment_gateway_ref (mihpayid)
+                        'completed',    -- status (ENUM value)
+                        NOW()
+                    )`,
+                    [userId, amountToAdd, currentBalance, newBalance, mihpayid]
+                );
+
+                console.log('✅ Transaction recorded in database');
+                console.log('🎉 PayU payment successful! User', userId, 'added ₹', amountToAdd);
             }
 
-            const amountToAdd = parseFloat(amount);
-            const newBalance = currentBalance + amountToAdd;
-
-            // Update wallet balance
-            await db.query(
-                'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
-                [newBalance, userId]
-            );
-
-            console.log('💰 Wallet updated - New balance:', newBalance);
-
-            // Record transaction in history
-            await db.query(
-                `INSERT INTO wallet_transactions 
-                (user_id, transaction_type, amount, balance_before, balance_after, description, 
-                 payment_method, payment_gateway_ref, status, created_at)
-                VALUES (
-                    ?,              -- user_id
-                    'deposit',      -- transaction_type (ENUM value)
-                    ?,              -- amount
-                    ?,              -- balance_before
-                    ?,              -- balance_after
-                    'Money added via PayU',
-                    'PayU',         -- payment_method
-                    ?,              -- payment_gateway_ref (mihpayid)
-                    'completed',    -- status (ENUM value)
-                    NOW()
-                )`,
-                [userId, amountToAdd, currentBalance, newBalance, mihpayid]
-            );
-
-            console.log('✅ Transaction recorded in database');
-            console.log('🎉 PayU payment successful! User', userId, 'added ₹', amountToAdd);
         } else {
             console.log('❌ Payment status is not success:', status);
         }
