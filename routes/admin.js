@@ -273,7 +273,7 @@ router.get('/users', verifyAdminToken, async (req, res) => {
                 u.username,
                 u.full_name,
                 u.email,
-                u.phone_number,
+                u.phone,
                 u.created_at,
                 u.is_active,
                 w.balance as wallet_balance,
@@ -286,7 +286,7 @@ router.get('/users', verifyAdminToken, async (req, res) => {
         const params = [];
 
         if (search) {
-            query += ` AND (u.username LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? OR u.phone_number LIKE ?)`;
+            query += ` AND (u.username LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)`;
             const searchTerm = `%${search}%`;
             params.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
@@ -301,7 +301,7 @@ router.get('/users', verifyAdminToken, async (req, res) => {
         const countParams = [];
 
         if (search) {
-            countQuery += ` AND (username LIKE ? OR full_name LIKE ? OR email LIKE ? OR phone_number LIKE ?)`;
+            countQuery += ` AND (username LIKE ? OR full_name LIKE ? OR email LIKE ? OR phone LIKE ?)`;
             const searchTerm = `%${search}%`;
             countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
