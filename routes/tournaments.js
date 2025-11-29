@@ -228,7 +228,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                 `INSERT INTO wallet_transactions 
                  (user_id, transaction_type, amount, balance_before, balance_after, 
                   status, payment_method, description)
-                 VALUES (?, 'tournament_entry', ?, ?, ?, 'success', ?, ?)`,
+                 VALUES (?, 'tournament_entry', ?, ?, ?, 'completed', ?, ?)`,
                 [
                     userId,
                     entryFee,
