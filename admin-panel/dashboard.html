@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Kabuto Esports Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page">
+    
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🎮 KABUTO ESPORTS - Admin Panel</span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="fas fa-user-shield"></i> 
+                    <span id="adminName">Admin</span>
+                    <small class="ms-2 badge bg-light text-dark" id="adminRole">Super</small>
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="dashboard.html">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="users.html">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="tournaments.html">
+                            <i class="fas fa-trophy"></i> Tournaments
+                        </a>
+                    </li>
+                    <li class="nav-item" id="walletLink">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-wallet"></i> Wallet (Soon)
+                        </a>
+                    </li>
+                    <li class="nav-item" id="adminsLink">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-user-shield"></i> Admins (Soon)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 p-4">
+                <h2 class="mb-4">📊 Dashboard Overview</h2>
+
+                <!-- Stats Cards -->
+                <div class="row mb-4">
+                    <!-- Total Users -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card primary">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Total Users</h6>
+                                        <h2 class="mb-0" id="totalUsers">-</h2>
+                                        <small>Registered users</small>
+                                    </div>
+                                    <div class="stat-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Total Tournaments -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card success">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Total Tournaments</h6>
+                                        <h2 class="mb-0" id="totalTournaments">-</h2>
+                                        <small>All tournaments</small>
+                                    </div>
+                                    <div class="stat-icon">
+                                        <i class="fas fa-trophy"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Active Tournaments -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card warning">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Active Tournaments</h6>
+                                        <h2 class="mb-0" id="activeTournaments">-</h2>
+                                        <small>Registration open</small>
+                                    </div>
+                                    <div class="stat-icon">
+                                        <i class="fas fa-fire"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Total Registrations -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card info">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Total Registrations</h6>
+                                        <h2 class="mb-0" id="totalRegistrations">-</h2>
+                                        <small>All time</small>
+                                    </div>
+                                    <div class="stat-icon">
+                                        <i class="fas fa-ticket-alt"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card table-card">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">📋 Recent Registrations</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>User</th>
+                                                <th>Tournament</th>
+                                                <th>Type</th>
+                                                <th>Fee</th>
+                                                <th>Status</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recentRegistrations">
+                                            <tr>
+                                                <td colspan="7" class="text-center py-4">
+                                                    <div class="spinner-border text-primary" role="status"></div>
+                                                    <p class="mt-2 text-muted">Loading...</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://kabuto-esports-api.onrender.com/api';
+        let adminToken = localStorage.getItem('admin_token');
+        let adminData = JSON.parse(localStorage.getItem('admin_data') || '{}');
+
+        // Check if logged in
+        if (!adminToken) {
+            window.location.href = 'login.html';
+        }
+
+        // Display admin info
+        document.getElementById('adminName').textContent = adminData.username || 'Admin';
+        document.getElementById('adminRole').textContent = adminData.admin_role === 'super' ? 'Super Admin' : 'Secondary Admin';
+
+        // Hide super admin only features for secondary admins
+        if (adminData.admin_role !== 'super') {
+            document.getElementById('walletLink').style.display = 'none';
+            document.getElementById('adminsLink').style.display = 'none';
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_data');
+            window.location.href = 'login.html';
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                // This is placeholder - we'll add real API calls later
+                document.getElementById('totalUsers').textContent = '...';
+                document.getElementById('totalTournaments').textContent = '...';
+                document.getElementById('activeTournaments').textContent = '...';
+                document.getElementById('totalRegistrations').textContent = '...';
+
+                document.getElementById('recentRegistrations').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            Dashboard stats will be added in next steps
+                        </td>
+                    </tr>
+                `;
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        // Load on page load
+        loadDashboard();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
