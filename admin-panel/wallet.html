@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet Management - Kabuto Esports Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page">
+    
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🎮 KABUTO ESPORTS - Admin Panel</span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="fas fa-user-shield"></i> 
+                    <span id="adminName">Admin</span>
+                    <small class="ms-2 badge bg-light text-dark" id="adminRole">Super</small>
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.html">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="users.html">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="tournaments.html">
+                            <i class="fas fa-trophy"></i> Tournaments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="wallet.html">
+                            <i class="fas fa-wallet"></i> Wallet
+                        </a>
+                    </li>
+                    <li class="nav-item" id="adminsLink">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-user-shield"></i> Admins (Soon)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 p-4">
+                <h2 class="mb-4">💰 Wallet Management</h2>
+
+                <!-- Stats Cards -->
+                <div class="row mb-4">
+                    <!-- Total Wallet Balance -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card primary">
+                            <div class="card-body">
+                                <h6 class="mb-1">Total Wallet Balance</h6>
+                                <h2 class="mb-0" id="totalWalletBalance">-</h2>
+                                <small>Across all users</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Total Revenue -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card success">
+                            <div class="card-body">
+                                <h6 class="mb-1">Total Revenue</h6>
+                                <h2 class="mb-0" id="totalRevenue">-</h2>
+                                <small>Tournament entries</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Today's Revenue -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card warning">
+                            <div class="card-body">
+                                <h6 class="mb-1">Today's Revenue</h6>
+                                <h2 class="mb-0" id="todayRevenue">-</h2>
+                                <small>Last 24 hours</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- This Month -->
+                    <div class="col-md-3 mb-3">
+                        <div class="card stat-card info">
+                            <div class="card-body">
+                                <h6 class="mb-1">This Month</h6>
+                                <h2 class="mb-0" id="monthRevenue">-</h2>
+                                <small>Current month</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Total Deposits</h6>
+                                <h4 id="totalDeposits">₹0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Total Withdrawals</h6>
+                                <h4 id="totalWithdrawals">₹0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Total Refunds</h6>
+                                <h4 id="totalRefunds">₹0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Pending Transactions</h6>
+                                <h4 id="pendingTransactions">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <input type="text" id="searchInput" class="form-control" placeholder="🔍 Search user...">
+                            </div>
+                            <div class="col-md-2">
+                                <select id="transactionTypeFilter" class="form-select">
+                                    <option value="">All Types</option>
+                                    <option value="deposit">Deposit</option>
+                                    <option value="withdrawal">Withdrawal</option>
+                                    <option value="tournament_entry">Tournament Entry</option>
+                                    <option value="tournament_prize">Tournament Prize</option>
+                                    <option value="refund">Refund</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="statusFilter" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="date" id="startDate" class="form-control" placeholder="Start Date">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="date" id="endDate" class="form-control" placeholder="End Date">
+                            </div>
+                            <div class="col-md-1">
+                                <button class="btn btn-primary w-100" onclick="loadTransactions()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transactions Table -->
+                <div class="card table-card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">💳 All Transactions</h5>
+                        <button class="btn btn-sm btn-success" onclick="exportTransactions()">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>User</th>
+                                        <th>Type</th>
+                                        <th>Amount</th>
+                                        <th>Balance Before</th>
+                                        <th>Balance After</th>
+                                        <th>Status</th>
+                                        <th>Payment Method</th>
+                                        <th>Description</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionsTableBody">
+                                    <tr>
+                                        <td colspan="10" class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="mt-2 text-muted">Loading transactions...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <small class="text-muted">Showing <strong id="showingCount">0</strong> of <strong id="totalCount">0</strong> transactions</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" id="prevBtn" onclick="previousPage()" disabled>
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" id="nextBtn" onclick="nextPage()">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://kabuto-esports-api.onrender.com/api';
+        let adminToken = localStorage.getItem('admin_token');
+        let adminData = JSON.parse(localStorage.getItem('admin_data') || '{}');
+        let currentPage = 0;
+        let limit = 100;
+        let totalTransactions = 0;
+
+        // Check if logged in and is super admin
+        if (!adminToken) {
+            window.location.href = 'login.html';
+        }
+
+        if (adminData.admin_role !== 'super') {
+            alert('Access denied. Super Admin only.');
+            window.location.href = 'dashboard.html';
+        }
+
+        // Display admin info
+        document.getElementById('adminName').textContent = adminData.username || 'Admin';
+        document.getElementById('adminRole').textContent = 'Super Admin';
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_data');
+            window.location.href = 'login.html';
+        }
+
+        // Load Wallet Stats
+        async function loadWalletStats() {
+            try {
+                const response = await fetch(`${API_URL}/admin/wallet/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.data;
+                    
+                    document.getElementById('totalWalletBalance').textContent = `₹${parseFloat(stats.totalWalletBalance).toFixed(0)}`;
+                    document.getElementById('totalRevenue').textContent = `₹${parseFloat(stats.totalRevenue).toFixed(0)}`;
+                    document.getElementById('todayRevenue').textContent = `₹${parseFloat(stats.todayRevenue).toFixed(0)}`;
+                    document.getElementById('monthRevenue').textContent = `₹${parseFloat(stats.monthRevenue).toFixed(0)}`;
+                    document.getElementById('totalDeposits').textContent = `₹${parseFloat(stats.totalDeposits).toFixed(0)}`;
+                    document.getElementById('totalWithdrawals').textContent = `₹${parseFloat(stats.totalWithdrawals).toFixed(0)}`;
+                    document.getElementById('totalRefunds').textContent = `₹${parseFloat(stats.totalRefunds).toFixed(0)}`;
+                    document.getElementById('pendingTransactions').textContent = `${stats.pendingTransactions.count} (₹${parseFloat(stats.pendingTransactions.amount).toFixed(0)})`;
+                }
+
+            } catch (error) {
+                console.error('Load stats error:', error);
+            }
+        }
+
+        // Search on Enter
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                currentPage = 0;
+                loadTransactions();
+            }
+        });
+
+        // Load Transactions
+        async function loadTransactions() {
+            try {
+                const search = document.getElementById('searchInput').value;
+                const transactionType = document.getElementById('transactionTypeFilter').value;
+                const status = document.getElementById('statusFilter').value;
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                const offset = currentPage * limit;
+
+                const params = new URLSearchParams({
+                    search,
+                    transaction_type: transactionType,
+                    status,
+                    start_date: startDate,
+                    end_date: endDate,
+                    limit,
+                    offset
+                });
+
+                const response = await fetch(`${API_URL}/admin/wallet/transactions?${params}`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    totalTransactions = data.total;
+                    displayTransactions(data.data);
+                    updatePagination();
+                } else {
+                    alert('Error loading transactions');
+                }
+
+            } catch (error) {
+                console.error('Load transactions error:', error);
+                alert('Failed to load transactions');
+            }
+        }
+
+        // Display Transactions
+        function displayTransactions(transactions) {
+            const tbody = document.getElementById('transactionsTableBody');
+
+            if (transactions.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            No transactions found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = transactions.map(t => `
+                <tr>
+                    <td>#${t.transaction_id}</td>
+                    <td>${t.full_name || t.username}</td>
+                    <td><span class="badge bg-${getTypeBadgeColor(t.transaction_type)}">${t.transaction_type}</span></td>
+                    <td><strong>₹${parseFloat(t.amount).toFixed(2)}</strong></td>
+                    <td>₹${parseFloat(t.balance_before).toFixed(2)}</td>
+                    <td>₹${parseFloat(t.balance_after).toFixed(2)}</td>
+                    <td>${getStatusBadge(t.status)}</td>
+                    <td>${t.payment_method || '-'}</td>
+                    <td><small>${t.description || '-'}</small></td>
+                    <td>${new Date(t.created_at).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Get Type Badge Color
+        function getTypeBadgeColor(type) {
+            const colors = {
+                'deposit': 'success',
+                'withdrawal': 'danger',
+                'tournament_entry': 'primary',
+                'tournament_prize': 'warning',
+                'refund': 'info'
+            };
+            return colors[type] || 'secondary';
+        }
+
+        // Get Status Badge
+        function getStatusBadge(status) {
+            const badges = {
+                'pending': '<span class="badge bg-warning">Pending</span>',
+                'completed': '<span class="badge bg-success">Completed</span>',
+                'failed': '<span class="badge bg-danger">Failed</span>',
+                'cancelled': '<span class="badge bg-secondary">Cancelled</span>'
+            };
+            return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+        }
+
+        // Update Pagination
+        function updatePagination() {
+            const showing = Math.min((currentPage + 1) * limit, totalTransactions);
+            document.getElementById('showingCount').textContent = showing;
+            document.getElementById('totalCount').textContent = totalTransactions;
+
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').disabled = showing >= totalTransactions;
+        }
+
+        // Pagination
+        function previousPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                loadTransactions();
+            }
+        }
+
+        function nextPage() {
+            if ((currentPage + 1) * limit < totalTransactions) {
+                currentPage++;
+                loadTransactions();
+            }
+        }
+
+        // Export Transactions (placeholder)
+        function exportTransactions() {
+            alert('CSV export feature coming soon!');
+        }
+
+        // Load data on page load
+        loadWalletStats();
+        loadTransactions();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

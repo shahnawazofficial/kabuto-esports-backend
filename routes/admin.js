@@ -1190,4 +1190,281 @@ router.post('/wallet/deduct', verifyAdminToken, verifySuperAdmin, async (req, re
     }
 });
 
+// ==========================================
+// ADMIN MANAGEMENT (Super Admin Only)
+// ==========================================
+
+// Get All Admins
+router.get('/admins', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const [admins] = await db.query(
+            `SELECT 
+                a.admin_id,
+                a.username,
+                a.email,
+                a.full_name,
+                a.admin_role,
+                a.is_active,
+                a.created_at,
+                a.last_login,
+                creator.username as created_by_username
+             FROM admins a
+             LEFT JOIN admins creator ON a.created_by = creator.admin_id
+             ORDER BY a.created_at DESC`
+        );
+
+        res.json({
+            success: true,
+            data: admins
+        });
+
+    } catch (error) {
+        console.error('Get admins error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching admins',
+            error: error.message
+        });
+    }
+});
+
+// Create Secondary Admin
+router.post('/admins', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const { username, email, password, full_name } = req.body;
+
+        // Validate input
+        if (!username || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username, email, and password are required'
+            });
+        }
+
+        // Check if username already exists
+        const [existingUsername] = await db.query(
+            'SELECT admin_id FROM admins WHERE username = ?',
+            [username]
+        );
+
+        if (existingUsername.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username already exists'
+            });
+        }
+
+        // Check if email already exists
+        const [existingEmail] = await db.query(
+            'SELECT admin_id FROM admins WHERE email = ?',
+            [email]
+        );
+
+        if (existingEmail.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email already exists'
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create admin
+        const [result] = await db.query(
+            `INSERT INTO admins 
+             (username, email, password, full_name, admin_role, is_active, created_by)
+             VALUES (?, ?, ?, ?, 'secondary', true, ?)`,
+            [username, email, hashedPassword, full_name || null, req.admin.admin_id]
+        );
+
+        console.log(`✅ Super Admin ${req.admin.admin_id} created secondary admin: ${username}`);
+
+        res.json({
+            success: true,
+            message: 'Secondary admin created successfully',
+            data: {
+                admin_id: result.insertId,
+                username,
+                email,
+                admin_role: 'secondary'
+            }
+        });
+
+    } catch (error) {
+        console.error('Create admin error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating admin',
+            error: error.message
+        });
+    }
+});
+
+// Toggle Admin Active Status
+router.post('/admins/:adminId/toggle-active', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const adminId = req.params.adminId;
+
+        // Prevent super admin from disabling themselves
+        if (adminId == req.admin.admin_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot disable your own account'
+            });
+        }
+
+        // Get current status
+        const [admins] = await db.query(
+            'SELECT is_active, admin_role FROM admins WHERE admin_id = ?',
+            [adminId]
+        );
+
+        if (admins.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Admin not found'
+            });
+        }
+
+        // Prevent disabling other super admins
+        if (admins[0].admin_role === 'super') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot disable super admin accounts'
+            });
+        }
+
+        const newStatus = !admins[0].is_active;
+
+        // Update status
+        await db.query(
+            'UPDATE admins SET is_active = ? WHERE admin_id = ?',
+            [newStatus, adminId]
+        );
+
+        console.log(`✅ Super Admin ${req.admin.admin_id} ${newStatus ? 'activated' : 'deactivated'} admin ${adminId}`);
+
+        res.json({
+            success: true,
+            message: `Admin ${newStatus ? 'activated' : 'deactivated'} successfully`,
+            data: { is_active: newStatus }
+        });
+
+    } catch (error) {
+        console.error('Toggle admin active error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating admin status',
+            error: error.message
+        });
+    }
+});
+
+// Delete Admin
+router.delete('/admins/:adminId', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const adminId = req.params.adminId;
+
+        // Prevent super admin from deleting themselves
+        if (adminId == req.admin.admin_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot delete your own account'
+            });
+        }
+
+        // Check admin exists and role
+        const [admins] = await db.query(
+            'SELECT admin_role FROM admins WHERE admin_id = ?',
+            [adminId]
+        );
+
+        if (admins.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Admin not found'
+            });
+        }
+
+        // Prevent deleting other super admins
+        if (admins[0].admin_role === 'super') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete super admin accounts'
+            });
+        }
+
+        // Delete admin
+        await db.query('DELETE FROM admins WHERE admin_id = ?', [adminId]);
+
+        console.log(`✅ Super Admin ${req.admin.admin_id} deleted admin ${adminId}`);
+
+        res.json({
+            success: true,
+            message: 'Admin deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Delete admin error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting admin',
+            error: error.message
+        });
+    }
+});
+
+// Reset Admin Password
+router.post('/admins/:adminId/reset-password', verifyAdminToken, verifySuperAdmin, async (req, res) => {
+    try {
+        const adminId = req.params.adminId;
+        const { new_password } = req.body;
+
+        if (!new_password || new_password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters'
+            });
+        }
+
+        // Check admin exists
+        const [admins] = await db.query(
+            'SELECT admin_role FROM admins WHERE admin_id = ?',
+            [adminId]
+        );
+
+        if (admins.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Admin not found'
+            });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+
+        // Update password
+        await db.query(
+            'UPDATE admins SET password = ? WHERE admin_id = ?',
+            [hashedPassword, adminId]
+        );
+
+        console.log(`✅ Super Admin ${req.admin.admin_id} reset password for admin ${adminId}`);
+
+        res.json({
+            success: true,
+            message: 'Password reset successfully'
+        });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error resetting password',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
