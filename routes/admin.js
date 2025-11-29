@@ -512,4 +512,315 @@ router.post('/users/:userId/add-money', verifyAdminToken, verifySuperAdmin, asyn
     }
 });
 
+// ==========================================
+// TOURNAMENT MANAGEMENT
+// ==========================================
+
+// Get All Tournaments (with filters)
+router.get('/tournaments', verifyAdminToken, async (req, res) => {
+    try {
+        const status = req.query.status || '';
+        const search = req.query.search || '';
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+
+        let query = `
+            SELECT 
+                t.*,
+                u.username as host_username,
+                u.full_name as host_name,
+                (SELECT COUNT(*) FROM tournament_registrations WHERE tournament_id = t.tournament_id) as total_registrations
+            FROM tournaments t
+            LEFT JOIN users u ON t.host_user_id = u.user_id
+            WHERE 1=1
+        `;
+
+        const params = [];
+
+        if (status) {
+            query += ` AND t.tournament_status = ?`;
+            params.push(status);
+        }
+
+        if (search) {
+            query += ` AND (t.tournament_name LIKE ? OR t.tournament_description LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            params.push(searchTerm, searchTerm);
+        }
+
+        query += ` ORDER BY t.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        const [tournaments] = await db.query(query, params);
+
+        // Get total count
+        let countQuery = `SELECT COUNT(*) as total FROM tournaments WHERE 1=1`;
+        const countParams = [];
+
+        if (status) {
+            countQuery += ` AND tournament_status = ?`;
+            countParams.push(status);
+        }
+
+        if (search) {
+            countQuery += ` AND (tournament_name LIKE ? OR tournament_description LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            countParams.push(searchTerm, searchTerm);
+        }
+
+        const [countResult] = await db.query(countQuery, countParams);
+
+        res.json({
+            success: true,
+            data: tournaments,
+            total: countResult[0].total,
+            limit,
+            offset
+        });
+
+    } catch (error) {
+        console.error('Get tournaments error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching tournaments',
+            error: error.message
+        });
+    }
+});
+
+// Get Tournament Registrations
+router.get('/tournaments/:tournamentId/registrations', verifyAdminToken, async (req, res) => {
+    try {
+        const tournamentId = req.params.tournamentId;
+
+        const [registrations] = await db.query(
+            `SELECT 
+                tr.*,
+                u.username,
+                u.full_name,
+                u.email,
+                u.phone
+             FROM tournament_registrations tr
+             JOIN users u ON tr.user_id = u.user_id
+             WHERE tr.tournament_id = ?
+             ORDER BY tr.registered_at DESC`,
+            [tournamentId]
+        );
+
+        // Parse player_details JSON
+        const registrationsWithDetails = registrations.map(reg => {
+            if (reg.player_details) {
+                try {
+                    reg.player_details = JSON.parse(reg.player_details);
+                } catch (e) {
+                    console.error('Error parsing player_details:', e);
+                }
+            }
+            return reg;
+        });
+
+        res.json({
+            success: true,
+            data: registrationsWithDetails
+        });
+
+    } catch (error) {
+        console.error('Get registrations error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching registrations',
+            error: error.message
+        });
+    }
+});
+
+// Create New Tournament
+router.post('/tournaments', verifyAdminToken, async (req, res) => {
+    try {
+        const {
+            tournament_name,
+            tournament_description,
+            game_mode,
+            max_participants,
+            registration_fee,
+            registration_start,
+            registration_end,
+            tournament_start_time,
+            total_prize_pool,
+            first_prize,
+            second_prize,
+            third_prize,
+            map_name,
+            perspective
+        } = req.body;
+
+        const [result] = await db.query(
+            `INSERT INTO tournaments (
+                tournament_name, tournament_description, host_user_id, game_mode,
+                max_participants, registration_fee, registration_start, registration_end,
+                tournament_start_time, total_prize_pool, first_prize, second_prize, third_prize,
+                tournament_status, map_name, perspective, current_participants
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registration_open', ?, ?, 0)`,
+            [
+                tournament_name,
+                tournament_description,
+                1, // Default host user ID (you can change this)
+                game_mode,
+                max_participants,
+                registration_fee,
+                registration_start,
+                registration_end,
+                tournament_start_time,
+                total_prize_pool,
+                first_prize,
+                second_prize,
+                third_prize,
+                map_name,
+                perspective
+            ]
+        );
+
+        console.log(`✅ Tournament created by admin ${req.admin.admin_id}: ${tournament_name}`);
+
+        res.json({
+            success: true,
+            message: 'Tournament created successfully',
+            data: {
+                tournament_id: result.insertId
+            }
+        });
+
+    } catch (error) {
+        console.error('Create tournament error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating tournament',
+            error: error.message
+        });
+    }
+});
+
+// Update Tournament
+router.put('/tournaments/:tournamentId', verifyAdminToken, async (req, res) => {
+    try {
+        const tournamentId = req.params.tournamentId;
+        const updates = req.body;
+
+        // Build dynamic update query
+        const allowedFields = [
+            'tournament_name', 'tournament_description', 'game_mode',
+            'max_participants', 'registration_fee', 'registration_start',
+            'registration_end', 'tournament_start_time', 'total_prize_pool',
+            'first_prize', 'second_prize', 'third_prize', 'map_name',
+            'perspective', 'tournament_status'
+        ];
+
+        const updateFields = [];
+        const params = [];
+
+        for (const [key, value] of Object.entries(updates)) {
+            if (allowedFields.includes(key)) {
+                updateFields.push(`${key} = ?`);
+                params.push(value);
+            }
+        }
+
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No valid fields to update'
+            });
+        }
+
+        params.push(tournamentId);
+
+        await db.query(
+            `UPDATE tournaments SET ${updateFields.join(', ')} WHERE tournament_id = ?`,
+            params
+        );
+
+        console.log(`✅ Tournament ${tournamentId} updated by admin ${req.admin.admin_id}`);
+
+        res.json({
+            success: true,
+            message: 'Tournament updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update tournament error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating tournament',
+            error: error.message
+        });
+    }
+});
+
+// Add/Update Room Details
+router.post('/tournaments/:tournamentId/room', verifyAdminToken, async (req, res) => {
+    try {
+        const tournamentId = req.params.tournamentId;
+        const { room_id, room_password } = req.body;
+
+        await db.query(
+            `UPDATE tournaments 
+             SET room_id = ?, room_password = ? 
+             WHERE tournament_id = ?`,
+            [room_id, room_password, tournamentId]
+        );
+
+        console.log(`✅ Room details added to tournament ${tournamentId} by admin ${req.admin.admin_id}`);
+
+        res.json({
+            success: true,
+            message: 'Room details updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update room details error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating room details',
+            error: error.message
+        });
+    }
+});
+
+// Update Tournament Status
+router.post('/tournaments/:tournamentId/status', verifyAdminToken, async (req, res) => {
+    try {
+        const tournamentId = req.params.tournamentId;
+        const { status } = req.body;
+
+        const validStatuses = ['registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled'];
+
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status'
+            });
+        }
+
+        await db.query(
+            `UPDATE tournaments SET tournament_status = ? WHERE tournament_id = ?`,
+            [status, tournamentId]
+        );
+
+        console.log(`✅ Tournament ${tournamentId} status changed to ${status} by admin ${req.admin.admin_id}`);
+
+        res.json({
+            success: true,
+            message: 'Tournament status updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update tournament status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating tournament status',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
