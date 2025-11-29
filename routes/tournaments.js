@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
+const crypto = require('crypto');
 
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
@@ -313,13 +314,13 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             }
         }
 
-        // ✅ PAYU/PARTIAL PAYMENT - Create pending registration
-        if (payMethod === 'payu' || payMethod === 'partial') {
+        // ✅ PAYU PAYMENT - Create pending registration and return PayU data
+        if (payMethod === 'payu') {
             const [result] = await connection.query(
                 `INSERT INTO tournament_registrations 
                  (tournament_id, user_id, team_id, registration_type, registration_fee_paid, 
-                  payment_status, registration_status, player_details)
-                 VALUES (?, ?, ?, ?, ?, 'pending', 'pending', ?)`,
+                  payment_method, payment_status, registration_status, player_details)
+                 VALUES (?, ?, ?, ?, ?, 'payu', 'pending', 'pending', ?)`,
                 [
                     tournamentId, 
                     userId, 
@@ -335,17 +336,44 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
 
             console.log('⏳ Registration pending - Awaiting PayU payment');
 
+            // ✅ GENERATE PAYU PAYMENT DATA
+            const txnid = `TXN${Date.now()}${registrationId}`;
+            const productinfo = `Tournament Registration - ${tournament.tournament_name}`;
+            
+            const [users] = await db.query('SELECT username, email, phone FROM users WHERE user_id = ?', [userId]);
+            const user = users[0];
+
+            const hashString = `${process.env.PAYU_MERCHANT_KEY}|${txnid}|${entryFee}|${productinfo}|${user.username}|${user.email}|||||||||||${process.env.PAYU_MERCHANT_SALT}`;
+            const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+
+            const payuData = {
+                key: process.env.PAYU_MERCHANT_KEY,
+                txnid: txnid,
+                amount: entryFee.toString(),
+                productinfo: productinfo,
+                firstname: user.username,
+                email: user.email,
+                phone: user.phone || '9999999999',
+                surl: `${process.env.BACKEND_URL}/api/payu/success`,
+                furl: `${process.env.BACKEND_URL}/api/payu/failure`,
+                hash: hash,
+                payu_url: process.env.PAYU_BASE_URL
+            };
+
+            console.log('✅ PayU data generated:', { txnid, amount: entryFee });
+
             return res.json({
                 success: true,
-                message: 'Registration initiated - Complete payment',
+                message: 'Registration pending. Please complete payment.',
                 requires_payment: true,
                 data: {
                     tournament_id: tournamentId,
                     registration_id: registrationId,
                     entry_fee: entryFee,
-                    payment_method: payMethod,
+                    payment_method: 'payu',
                     registration_status: 'pending'
-                }
+                },
+                payu_data: payuData  // ✅ ADDED
             });
         }
 
