@@ -53,8 +53,8 @@
                         </a>
                     </li>
                     <li class="nav-item" id="adminsLink">
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-user-shield"></i> Admins (Soon)
+                        <a class="nav-link" href="admins.html">
+                            <i class="fas fa-user-shield"></i> Admins
                         </a>
                     </li>
                 </ul>
@@ -280,6 +280,7 @@
         let currentPage = 0;
         let limit = 50;
         let totalTournaments = 0;
+        let currentRegistrations = [];
 
         // Check if logged in
         if (!adminToken) {
@@ -523,7 +524,7 @@
             let html = `
                 <div class="d-flex justify-content-between mb-3">
                     <h6>${tournamentName} - ${registrations.length} Registrations</h6>
-                    <button class="btn btn-sm btn-success" onclick="downloadRegistrations()">
+                    <button class="btn btn-sm btn-success" onclick="downloadRegistrations('${tournamentName}')">
                         <i class="fas fa-download"></i> Download CSV
                     </button>
                 </div>
@@ -588,11 +589,97 @@
             `;
 
             document.getElementById('registrationsContent').innerHTML = html;
+            
+            // Store current registrations for CSV export
+            currentRegistrations = registrations;
         }
 
-        // Download Registrations (placeholder)
-        function downloadRegistrations() {
-            alert('CSV download feature coming soon!');
+        // Download Registrations as CSV
+        function downloadRegistrations(tournamentName) {
+            if (currentRegistrations.length === 0) {
+                alert('No registrations to download');
+                return;
+            }
+
+            // Prepare CSV data
+            let csv = '';
+            
+            // Headers
+            csv += 'Registration ID,User,Email,Phone,Type,IGN,In-Game ID,WhatsApp,Role,Team Name,';
+            csv += 'Player 1 IGN,Player 1 ID,Player 1 Phone,Player 1 Role,';
+            csv += 'Player 2 IGN,Player 2 ID,Player 2 Phone,Player 2 Role,';
+            csv += 'Player 3 IGN,Player 3 ID,Player 3 Phone,Player 3 Role,';
+            csv += 'Player 4 IGN,Player 4 ID,Player 4 Phone,Player 4 Role,';
+            csv += 'Player 5 IGN,Player 5 ID,Player 5 Phone,Player 5 Role,';
+            csv += 'Entry Fee,Payment Status,Registration Status,Registration Date\n';
+
+            // Data rows
+            currentRegistrations.forEach(reg => {
+                const details = reg.player_details;
+                
+                // Basic info
+                csv += `${reg.registration_id},`;
+                csv += `"${reg.full_name || reg.username}",`;
+                csv += `"${reg.email || ''}",`;
+                csv += `"${reg.phone || ''}",`;
+                csv += `${reg.registration_type},`;
+
+                if (details && details.registration_type === 'solo') {
+                    // Solo player details
+                    csv += `"${details.ign || ''}",`;
+                    csv += `"${details.in_game_id || ''}",`;
+                    csv += `"${details.whatsapp || ''}",`;
+                    csv += `"${details.role || ''}",`;
+                    csv += ',,'; // Empty team name columns
+                    
+                    // Empty team player columns (5 players x 4 fields = 20 columns)
+                    for (let i = 0; i < 20; i++) {
+                        csv += ',';
+                    }
+                } else if (details && details.registration_type === 'team') {
+                    // Team registration
+                    csv += ',,,,'; // Empty solo columns
+                    csv += `"${details.team_name || ''}",`;
+                    
+                    // Team players (up to 5)
+                    const players = details.players || [];
+                    for (let i = 0; i < 5; i++) {
+                        if (players[i]) {
+                            csv += `"${players[i].ign || ''}",`;
+                            csv += `"${players[i].in_game_id || ''}",`;
+                            csv += `"${players[i].phone || ''}",`;
+                            csv += `"${players[i].role || ''}",`;
+                        } else {
+                            csv += ',,,,';
+                        }
+                    }
+                } else {
+                    // No player details
+                    for (let i = 0; i < 25; i++) {
+                        csv += ',';
+                    }
+                }
+
+                // Payment and status info
+                csv += `${reg.registration_fee_paid},`;
+                csv += `${reg.payment_status},`;
+                csv += `${reg.registration_status},`;
+                csv += `${new Date(reg.registered_at).toLocaleString()}\n`;
+            });
+
+            // Create and download file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const fileName = `${tournamentName.replace(/[^a-z0-9]/gi, '_')}_registrations_${new Date().toISOString().split('T')[0]}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Show Room Modal

@@ -53,8 +53,8 @@
                         </a>
                     </li>
                     <li class="nav-item" id="adminsLink">
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-user-shield"></i> Admins (Soon)
+                        <a class="nav-link" href="admins.html">
+                            <i class="fas fa-user-shield"></i> Admins
                         </a>
                     </li>
                 </ul>
@@ -251,6 +251,7 @@
         let currentPage = 0;
         let limit = 100;
         let totalTransactions = 0;
+        let currentTransactions = [];
 
         // Check if logged in and is super admin
         if (!adminToken) {
@@ -381,6 +382,9 @@
                     <td>${new Date(t.created_at).toLocaleString()}</td>
                 </tr>
             `).join('');
+            
+            // Store current transactions for CSV export
+            currentTransactions = transactions;
         }
 
         // Get Type Badge Color
@@ -431,9 +435,47 @@
             }
         }
 
-        // Export Transactions (placeholder)
+        // Export Transactions as CSV
         function exportTransactions() {
-            alert('CSV export feature coming soon!');
+            if (currentTransactions.length === 0) {
+                alert('No transactions to export');
+                return;
+            }
+
+            // Prepare CSV data
+            let csv = 'Transaction ID,User ID,Username,Full Name,Email,Transaction Type,Amount,';
+            csv += 'Balance Before,Balance After,Status,Payment Method,Description,Created At\n';
+
+            // Data rows
+            currentTransactions.forEach(t => {
+                csv += `${t.transaction_id},`;
+                csv += `${t.user_id},`;
+                csv += `"${t.username || ''}",`;
+                csv += `"${t.full_name || ''}",`;
+                csv += `"${t.email || ''}",`;
+                csv += `${t.transaction_type},`;
+                csv += `${t.amount},`;
+                csv += `${t.balance_before},`;
+                csv += `${t.balance_after},`;
+                csv += `${t.status},`;
+                csv += `"${t.payment_method || ''}",`;
+                csv += `"${(t.description || '').replace(/"/g, '""')}",`;
+                csv += `${new Date(t.created_at).toLocaleString()}\n`;
+            });
+
+            // Create and download file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const fileName = `wallet_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Load data on page load

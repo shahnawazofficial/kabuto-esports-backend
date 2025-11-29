@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Management - Kabuto Esports Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page">
+    
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🎮 KABUTO ESPORTS - Admin Panel</span>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="fas fa-user-shield"></i> 
+                    <span id="adminName">Admin</span>
+                    <small class="ms-2 badge bg-light text-dark" id="adminRole">Super</small>
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.html">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="users.html">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="tournaments.html">
+                            <i class="fas fa-trophy"></i> Tournaments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="wallet.html">
+                            <i class="fas fa-wallet"></i> Wallet
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="admins.html">
+                            <i class="fas fa-user-shield"></i> Admins
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>👑 Admin Management</h2>
+                    <button class="btn btn-primary" onclick="showCreateAdmin()">
+                        <i class="fas fa-plus"></i> Create Secondary Admin
+                    </button>
+                </div>
+
+                <!-- Admins Table -->
+                <div class="card table-card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Full Name</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Created By</th>
+                                        <th>Created At</th>
+                                        <th>Last Login</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminsTableBody">
+                                    <tr>
+                                        <td colspan="10" class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="mt-2 text-muted">Loading admins...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Admin Modal -->
+    <div class="modal fade" id="createAdminModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">👤 Create Secondary Admin</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createAdminForm">
+                        <div class="mb-3">
+                            <label class="form-label">Username *</label>
+                            <input type="text" class="form-control" id="adminUsername" required>
+                            <small class="text-muted">Used for login</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="adminEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" id="adminFullName">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="adminPassword" required minlength="6">
+                            <small class="text-muted">Minimum 6 characters</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirm Password *</label>
+                            <input type="password" class="form-control" id="adminPasswordConfirm" required minlength="6">
+                        </div>
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> Secondary admins can manage users and tournaments but cannot access wallet or admin management.
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-user-plus"></i> Create Admin
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div class="modal fade" id="resetPasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🔑 Reset Admin Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="resetPasswordForm">
+                        <input type="hidden" id="resetAdminId">
+                        <div class="mb-3">
+                            <label class="form-label">New Password *</label>
+                            <input type="password" class="form-control" id="newPassword" required minlength="6">
+                            <small class="text-muted">Minimum 6 characters</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirm New Password *</label>
+                            <input type="password" class="form-control" id="newPasswordConfirm" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-key"></i> Reset Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://kabuto-esports-api.onrender.com/api';
+        let adminToken = localStorage.getItem('admin_token');
+        let adminData = JSON.parse(localStorage.getItem('admin_data') || '{}');
+
+        // Check if logged in and is super admin
+        if (!adminToken) {
+            window.location.href = 'login.html';
+        }
+
+        if (adminData.admin_role !== 'super') {
+            alert('Access denied. Super Admin only.');
+            window.location.href = 'dashboard.html';
+        }
+
+        // Display admin info
+        document.getElementById('adminName').textContent = adminData.username || 'Admin';
+        document.getElementById('adminRole').textContent = 'Super Admin';
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_data');
+            window.location.href = 'login.html';
+        }
+
+        // Load Admins
+        async function loadAdmins() {
+            try {
+                const response = await fetch(`${API_URL}/admin/admins`, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayAdmins(data.data);
+                } else {
+                    alert('Error loading admins');
+                }
+
+            } catch (error) {
+                console.error('Load admins error:', error);
+                alert('Failed to load admins');
+            }
+        }
+
+        // Display Admins
+        function displayAdmins(admins) {
+            const tbody = document.getElementById('adminsTableBody');
+
+            if (admins.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            No admins found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = admins.map(admin => `
+                <tr>
+                    <td>#${admin.admin_id}</td>
+                    <td><strong>${admin.username}</strong></td>
+                    <td>${admin.full_name || '-'}</td>
+                    <td>${admin.email}</td>
+                    <td>
+                        ${admin.admin_role === 'super' 
+                            ? '<span class="badge bg-danger">Super Admin</span>' 
+                            : '<span class="badge bg-primary">Secondary Admin</span>'}
+                    </td>
+                    <td>
+                        ${admin.is_active 
+                            ? '<span class="badge bg-success">Active</span>' 
+                            : '<span class="badge bg-secondary">Inactive</span>'}
+                    </td>
+                    <td>${admin.created_by_username || '-'}</td>
+                    <td>${new Date(admin.created_at).toLocaleDateString()}</td>
+                    <td>${admin.last_login ? new Date(admin.last_login).toLocaleString() : 'Never'}</td>
+                    <td>
+                        ${admin.admin_role !== 'super' ? `
+                            <button class="btn btn-sm btn-warning" onclick="showResetPassword(${admin.admin_id})">
+                                <i class="fas fa-key"></i>
+                            </button>
+                            <button class="btn btn-sm ${admin.is_active ? 'btn-secondary' : 'btn-success'}" 
+                                    onclick="toggleAdminStatus(${admin.admin_id}, ${admin.is_active})">
+                                <i class="fas fa-${admin.is_active ? 'ban' : 'check'}"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteAdmin(${admin.admin_id}, '${admin.username}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : '<span class="text-muted">Protected</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Show Create Admin Modal
+        function showCreateAdmin() {
+            document.getElementById('createAdminForm').reset();
+            const modal = new bootstrap.Modal(document.getElementById('createAdminModal'));
+            modal.show();
+        }
+
+        // Create Admin Form Submit
+        document.getElementById('createAdminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('adminUsername').value;
+            const email = document.getElementById('adminEmail').value;
+            const fullName = document.getElementById('adminFullName').value;
+            const password = document.getElementById('adminPassword').value;
+            const passwordConfirm = document.getElementById('adminPasswordConfirm').value;
+
+            // Validate passwords match
+            if (password !== passwordConfirm) {
+                alert('Passwords do not match!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/admins`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        email,
+                        full_name: fullName,
+                        password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Secondary admin created successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('createAdminModal')).hide();
+                    loadAdmins();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to create admin');
+            }
+        });
+
+        // Toggle Admin Status
+        async function toggleAdminStatus(adminId, currentStatus) {
+            const action = currentStatus ? 'deactivate' : 'activate';
+            
+            if (!confirm(`Are you sure you want to ${action} this admin?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/admins/${adminId}/toggle-active`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`Admin ${action}d successfully!`);
+                    loadAdmins();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to update admin status');
+            }
+        }
+
+        // Show Reset Password Modal
+        function showResetPassword(adminId) {
+            document.getElementById('resetAdminId').value = adminId;
+            document.getElementById('resetPasswordForm').reset();
+            
+            const modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+            modal.show();
+        }
+
+        // Reset Password Form Submit
+        document.getElementById('resetPasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const adminId = document.getElementById('resetAdminId').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const newPasswordConfirm = document.getElementById('newPasswordConfirm').value;
+
+            // Validate passwords match
+            if (newPassword !== newPasswordConfirm) {
+                alert('Passwords do not match!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/admins/${adminId}/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ new_password: newPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Password reset successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to reset password');
+            }
+        });
+
+        // Delete Admin
+        async function deleteAdmin(adminId, username) {
+            if (!confirm(`Are you sure you want to DELETE admin "${username}"? This action cannot be undone!`)) {
+                return;
+            }
+
+            // Double confirmation
+            if (!confirm('This will permanently delete the admin account. Are you absolutely sure?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/admins/${adminId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Admin deleted successfully!');
+                    loadAdmins();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to delete admin');
+            }
+        }
+
+        // Load admins on page load
+        loadAdmins();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
