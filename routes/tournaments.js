@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
-const crypto = require('crypto');
+const { PAYU_CONFIG, generatePayUHash } = require('../config/payu');
 
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
@@ -314,7 +314,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             }
         }
 
-        // ✅ PAYU PAYMENT - Create pending registration and return PayU data
+        // ✅ PAYU PAYMENT - Create pending registration and return PayU data (same as wallet add money)
         if (payMethod === 'payu') {
             const [result] = await connection.query(
                 `INSERT INTO tournament_registrations 
@@ -336,28 +336,42 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
 
             console.log('⏳ Registration pending - Awaiting PayU payment');
 
-            // ✅ GENERATE PAYU PAYMENT DATA
-            const txnid = `TXN${Date.now()}${registrationId}`;
+            // ✅ GENERATE PAYU PAYMENT DATA (same as wallet add money)
+            const txnid = `TXN${Date.now()}${userId}`;
             const productinfo = `Tournament Registration - ${tournament.tournament_name}`;
             
             const [users] = await db.query('SELECT username, email, phone FROM users WHERE user_id = ?', [userId]);
             const user = users[0];
 
-            const hashString = `${process.env.PAYU_MERCHANT_KEY}|${txnid}|${entryFee}|${productinfo}|${user.username}|${user.email}|||||||||||${process.env.PAYU_MERCHANT_SALT}`;
-            const hash = crypto.createHash('sha512').update(hashString).digest('hex');
-
-            const payuData = {
-                key: process.env.PAYU_MERCHANT_KEY,
+            // Use the same PayU config as wallet add money
+            const payuParams = {
+                key: PAYU_CONFIG.merchantKey,
                 txnid: txnid,
                 amount: entryFee.toString(),
                 productinfo: productinfo,
-                firstname: user.username,
-                email: user.email,
+                firstname: user.username || 'User',
+                email: user.email || `user${userId}@kabutoesports.com`,
                 phone: user.phone || '9999999999',
-                surl: `${process.env.BACKEND_URL}/api/payu/success`,
-                furl: `${process.env.BACKEND_URL}/api/payu/failure`,
+                surl: `${process.env.BACKEND_URL || 'https://kabuto-esports-api.onrender.com'}/api/payu/success`,
+                furl: `${process.env.BACKEND_URL || 'https://kabuto-esports-api.onrender.com'}/api/payu/failure`,
+                salt: PAYU_CONFIG.salt
+            };
+
+            // Generate hash using the same function as wallet add money
+            const hash = generatePayUHash(payuParams);
+
+            const payuData = {
+                key: payuParams.key,
+                txnid: payuParams.txnid,
+                amount: payuParams.amount,
+                productinfo: payuParams.productinfo,
+                firstname: payuParams.firstname,
+                email: payuParams.email,
+                phone: payuParams.phone,
+                surl: payuParams.surl,
+                furl: payuParams.furl,
                 hash: hash,
-                payu_url: process.env.PAYU_BASE_URL
+                payu_url: PAYU_CONFIG.baseUrl + '/_payment'
             };
 
             console.log('✅ PayU data generated:', { txnid, amount: entryFee });
@@ -373,7 +387,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                     payment_method: 'payu',
                     registration_status: 'pending'
                 },
-                payu_data: payuData  // ✅ ADDED
+                payu_data: payuData
             });
         }
 
