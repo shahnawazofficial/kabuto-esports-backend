@@ -134,7 +134,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             has_player_details: !!player_details 
         });
 
-        // Check if already registered
+        // Check if already registered (only block if confirmed, allow re-attempt if pending)
         const [existing] = await db.query(
             `SELECT * FROM tournament_registrations 
              WHERE tournament_id = ? AND user_id = ?`,
@@ -142,11 +142,23 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
         );
 
         if (existing.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'You are already registered for this tournament',
-                already_registered: true
-            });
+            // If registration is confirmed, block it
+            if (existing[0].registration_status === 'confirmed') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'You are already registered for this tournament',
+                    already_registered: true
+                });
+            }
+            
+            // If pending, delete it and allow re-registration
+            if (existing[0].registration_status === 'pending') {
+                console.log('🔄 Deleting previous pending registration');
+                await db.query(
+                    'DELETE FROM tournament_registrations WHERE registration_id = ?',
+                    [existing[0].registration_id]
+                );
+            }
         }
 
         // Get tournament details
@@ -211,12 +223,12 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                 [newBalance, userId]
             );
 
-            // Record wallet transaction
+            // ✅ FIXED: Changed 'debit' to 'tournament_entry'
             await db.query(
                 `INSERT INTO wallet_transactions 
                  (user_id, transaction_type, amount, balance_before, balance_after, 
                   status, payment_method, description)
-                 VALUES (?, 'debit', ?, ?, ?, 'success', ?, ?)`,
+                 VALUES (?, 'tournament_entry', ?, ?, ?, 'success', ?, ?)`,
                 [
                     userId,
                     entryFee,
@@ -259,7 +271,8 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                 [
                     userId,
                     `Successfully registered for ${tournament.tournament_name}`,
-                    tournamentId]
+                    tournamentId
+                ]
             );
 
             console.log('✅ Wallet payment - Registration confirmed');
