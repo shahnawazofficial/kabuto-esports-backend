@@ -3,6 +3,43 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// MULTER CONFIGURATION FOR IMAGE UPLOADS
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadType = req.path.includes('profile-picture') ? 'profiles' : 'banners';
+        const uploadPath = path.join(__dirname, `../uploads/${uploadType}`);
+        
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, req.userId + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    // Accept images only
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files are allowed!'), false);
+    }
+};
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 // MIDDLEWARE: Verify JWT Token
 const verifyToken = (req, res, next) => {
@@ -22,7 +59,7 @@ const verifyToken = (req, res, next) => {
                 message: 'Invalid or expired token'
             });
         }
-        req.userId = decoded.user_id;  // ✅ CHANGED: Now reads user_id
+        req.userId = decoded.user_id;
         next();
     });
 };
@@ -64,7 +101,7 @@ router.post('/register', async (req, res) => {
         console.log('✅ User registered with ID:', result.insertId);
         
         const token = jwt.sign(
-            { user_id: result.insertId, username: username },  // ✅ CHANGED: userId → user_id
+            { user_id: result.insertId, username: username },
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN }
         );
@@ -146,7 +183,7 @@ router.post('/login', async (req, res) => {
         console.log('✅ Login successful - User ID:', user.user_id);
         
         const token = jwt.sign(
-            { user_id: user.user_id, username: user.username },  // ✅ CHANGED: userId → user_id
+            { user_id: user.user_id, username: user.username },
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN }
         );
@@ -243,6 +280,88 @@ router.put('/profile', verifyToken, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error updating profile',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// IMAGE UPLOAD ROUTES
+// ==========================================
+
+// ROUTE: Upload Profile Picture
+router.post('/upload-profile-picture', verifyToken, upload.single('image'), async (req, res) => {
+    try {
+        console.log('📸 Profile picture upload for user ID:', req.userId);
+        
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No image file provided'
+            });
+        }
+        
+        // Construct the URL for the uploaded image
+        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/profiles/${req.file.filename}`;
+        
+        // Update user's profile_image_url in database
+        await db.query(
+            'UPDATE users SET profile_image_url = ? WHERE user_id = ?',
+            [imageUrl, req.userId]
+        );
+        
+        console.log('✅ Profile picture uploaded:', imageUrl);
+        
+        res.json({
+            success: true,
+            message: 'Profile picture uploaded successfully',
+            data: imageUrl
+        });
+        
+    } catch (error) {
+        console.error('❌ Upload profile picture error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error uploading profile picture',
+            error: error.message
+        });
+    }
+});
+
+// ROUTE: Upload Banner Image
+router.post('/upload-banner', verifyToken, upload.single('image'), async (req, res) => {
+    try {
+        console.log('🖼️ Banner upload for user ID:', req.userId);
+        
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No image file provided'
+            });
+        }
+        
+        // Construct the URL for the uploaded image
+        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/banners/${req.file.filename}`;
+        
+        // Update user's banner_image_url in database
+        await db.query(
+            'UPDATE users SET banner_image_url = ? WHERE user_id = ?',
+            [imageUrl, req.userId]
+        );
+        
+        console.log('✅ Banner uploaded:', imageUrl);
+        
+        res.json({
+            success: true,
+            message: 'Banner uploaded successfully',
+            data: imageUrl
+        });
+        
+    } catch (error) {
+        console.error('❌ Upload banner error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error uploading banner',
             error: error.message
         });
     }
