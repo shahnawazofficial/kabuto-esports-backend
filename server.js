@@ -74,6 +74,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
 app.use('/api/payu', payuRoutes);  // ← MAKE SURE THIS LINE IS HERE AND NOT COMMENTED
 app.use('/api/admin', adminRoutes);
+app.use('/uploads', express.static('uploads'));
 
 
 // ============================================
