@@ -15,11 +15,18 @@
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">🎮 KABUTO ESPORTS - Admin Panel</span>
             <div class="d-flex align-items-center">
+
                 <span class="text-white me-3">
                     <i class="fas fa-user-shield"></i> 
                     <span id="adminName">Admin</span>
                     <small class="ms-2 badge bg-light text-dark" id="adminRole">Super</small>
                 </span>
+
+                <!-- Mobile sidebar toggle -->
+                <button class="btn btn-light d-md-none me-2" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+
                 <button class="btn btn-outline-light btn-sm" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
@@ -30,7 +37,7 @@
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
-            <div class="col-md-2 sidebar">
+            <div class="col-12 col-md-2 sidebar" id="sidebar">
                 <ul class="nav flex-column">
                     <li class="nav-item">
                         <a class="nav-link" href="dashboard.html">
@@ -61,7 +68,7 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-10 p-4">
+            <div class="col-md-10 p-4 main-content">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>👑 Admin Management</h2>
                     <button class="btn btn-primary" onclick="showCreateAdmin()">
@@ -181,6 +188,19 @@
         const API_URL = 'https://kabuto-esports-api.onrender.com/api';
         let adminToken = localStorage.getItem('admin_token');
         let adminData = JSON.parse(localStorage.getItem('admin_data') || '{}');
+
+        // Sidebar toggle (mobile)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const content = document.querySelector('.main-content');
+
+            if (sidebar) {
+                sidebar.classList.toggle('open');
+            }
+            if (content) {
+                content.classList.toggle('content-shift');
+            }
+        }
 
         // Check if logged in and is super admin
         if (!adminToken) {

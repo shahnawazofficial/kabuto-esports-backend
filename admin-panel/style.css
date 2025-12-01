@@ -59,6 +59,7 @@ body {
    ========================================== */
 .dashboard-page {
     background: #f5f7fa;
+    overflow-x: hidden; /* prevent horizontal scroll when sidebar is hidden off-screen */
 }
 
 .navbar {
@@ -191,10 +192,30 @@ body {
    RESPONSIVE
    ========================================== */
 @media (max-width: 768px) {
+
+    /* Sidebar becomes slide-in drawer on mobile */
     .sidebar {
-        display: none;
+        position: fixed;
+        top: 56px; /* navbar height */
+        left: -240px; /* hidden by default */
+        width: 220px;
+        height: calc(100vh - 56px);
+        z-index: 1050;
+        display: block;
+        transition: left 0.3s ease;
+        overflow-y: auto;
     }
-    
+
+    .sidebar.open {
+        left: 0; /* visible when .open added */
+    }
+
+    /* When sidebar is open, shift main content */
+    .content-shift {
+        margin-left: 220px !important;
+        transition: margin-left 0.3s ease;
+    }
+
     .stat-card {
         margin-bottom: 15px;
     }
