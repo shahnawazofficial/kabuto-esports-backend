@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
+const path = require("path");   // ← IMPORTANT for serving admin panel
 
 // Load environment variables
 dotenv.config();
@@ -36,6 +37,22 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
+});
+
+// ============================================
+// SERVE ADMIN PANEL (STATIC HOSTING)
+// ============================================
+
+// 👉 This allows accessing admin panel from ANY device
+// Example: https://your-backend.onrender.com/admin
+app.use(
+    "/admin",
+    express.static(path.join(__dirname, "admin-panel"))
+);
+
+// When user opens /admin, send login page by default
+app.get("/admin", (req, res) => {
+    res.sendFile(path.join(__dirname, "admin-panel", "login.html"));
 });
 
 // ============================================
@@ -72,10 +89,10 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
-app.use('/api/payu', payuRoutes);  // ← MAKE SURE THIS LINE IS HERE AND NOT COMMENTED
+app.use('/api/payu', payuRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/uploads', express.static('uploads'));
 
+app.use('/uploads', express.static('uploads'));
 
 // ============================================
 // ERROR HANDLING
