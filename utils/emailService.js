@@ -1,36 +1,98 @@
 const nodemailer = require('nodemailer');
 
+// Create transporter with proper Hostinger SMTP settings
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: false, // true only for port 465
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: true, // true for port 465, false for 587
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false, // Accept self-signed certificates
+        minVersion: 'TLSv1.2'
+    },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    debug: true, // Enable debug logs
+    logger: true // Enable logger
+});
+
+// Verify SMTP connection on startup
+transporter.verify(function(error, success) {
+    if (error) {
+        console.error('❌ SMTP connection error:', error);
+        console.error('SMTP Config:', {
+            host: process.env.SMTP_HOST,
+            port: process.env.SMTP_PORT,
+            user: process.env.SMTP_USER,
+            secure: true
+        });
+    } else {
+        console.log('✅ SMTP Server is ready to send emails');
+        console.log('SMTP Config:', {
+            host: process.env.SMTP_HOST,
+            port: process.env.SMTP_PORT,
+            user: process.env.SMTP_USER
+        });
     }
 });
 
 async function sendOtpEmail(toEmail, otp) {
-    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+    try {
+        console.log(`📧 Preparing to send OTP email to: ${toEmail}`);
+        
+        const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
 
-    const mailOptions = {
-        from: fromEmail,
-        to: toEmail,
-        subject: 'Kabuto Esports - Password Reset OTP',
-        text: `Your OTP for resetting your password is: ${otp}\n\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`,
-        html: `
-            <div style="font-family: Arial, sans-serif; padding: 10px;">
-                <h2 style="color: #ff7a00;">Kabuto Esports</h2>
-                <p>Your OTP for resetting your password is:</p>
-                <h1 style="letter-spacing: 5px;">${otp}</h1>
-                <p>This OTP is valid for <b>10 minutes</b>.</p>
-                <p>If you did not request this, please ignore this email.</p>
-            </div>
-        `
-    };
+        const mailOptions = {
+            from: fromEmail,
+            to: toEmail,
+            subject: 'Kabuto Esports - Password Reset OTP',
+            text: `Your OTP for resetting your password is: ${otp}\n\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`,
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <div style="background: linear-gradient(135deg, #C96A0D 0%, #A85808 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+                        <h2 style="color: #ffffff; margin: 0;">Kabuto Esports</h2>
+                    </div>
+                    <div style="background: #f5f5f5; padding: 30px; border-radius: 0 0 10px 10px;">
+                        <p style="font-size: 16px; color: #333;">Your OTP for resetting your password is:</p>
+                        <div style="background: #ffffff; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                            <h1 style="letter-spacing: 10px; color: #C96A0D; margin: 0; font-size: 36px;">${otp}</h1>
+                        </div>
+                        <p style="font-size: 14px; color: #666;">This OTP is valid for <b>10 minutes</b>.</p>
+                        <p style="font-size: 14px; color: #999; margin-top: 30px;">If you did not request this, please ignore this email.</p>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+                        <p>© 2024 Kabuto Esports. All rights reserved.</p>
+                    </div>
+                </div>
+            `
+        };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('📨 OTP email sent:', info.messageId);
+        console.log('📧 Sending email with options:', {
+            from: mailOptions.from,
+            to: mailOptions.to,
+            subject: mailOptions.subject
+        });
+
+        const info = await transporter.sendMail(mailOptions);
+        
+        console.log('✅ OTP email sent successfully!');
+        console.log('📨 Message ID:', info.messageId);
+        console.log('📨 Response:', info.response);
+        
+        return info;
+    } catch (error) {
+        console.error('❌ Error in sendOtpEmail function:', error);
+        console.error('❌ Error details:', {
+            message: error.message,
+            code: error.code,
+            command: error.command
+        });
+        throw error;
+    }
 }
 
 module.exports = { sendOtpEmail };

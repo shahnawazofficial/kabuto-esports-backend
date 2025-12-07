@@ -221,8 +221,6 @@ router.post('/login', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
-
-        // We treat "email" field as a general identifier (email OR username OR phone)
         const identifier = (email || '').trim();
 
         console.log('🔁 Forgot-password request body:', req.body);
@@ -235,7 +233,7 @@ router.post('/forgot-password', async (req, res) => {
             });
         }
 
-        // Search user by email OR username OR phone (case-insensitive for email/username)
+        // Search user by email OR username OR phone
         const [users] = await db.query(
             `SELECT user_id, email, username, phone 
              FROM users 
@@ -260,18 +258,38 @@ router.post('/forgot-password', async (req, res) => {
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+        // Save OTP to database FIRST
         await db.query(
             'UPDATE users SET reset_password_otp = ?, reset_password_expires = ? WHERE user_id = ?',
             [otp, expiresAt, user.user_id]
         );
 
-        // 🔥 send OTP email via Hostinger
+        console.log(`✅ OTP saved to database for user ${user.email}: ${otp}`);
+
+        // Try to send email with timeout and better error handling
         try {
-            await sendOtpEmail(user.email, otp);
-            console.log(`📧 Password reset OTP email sent to ${user.email}: ${otp}`);
+            console.log(`📧 Attempting to send OTP email to ${user.email}...`);
+            
+            // Set a timeout for email sending (15 seconds)
+            const emailPromise = sendOtpEmail(user.email, otp);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Email sending timeout')), 15000)
+            );
+
+            await Promise.race([emailPromise, timeoutPromise]);
+            
+            console.log(`✅ OTP email sent successfully to ${user.email}`);
         } catch (emailErr) {
             console.error('❌ Error sending OTP email:', emailErr);
-            // (OTP is still stored in DB, so technically user can reset if they somehow get the code)
+            console.error('❌ Email error details:', {
+                message: emailErr.message,
+                code: emailErr.code,
+                stack: emailErr.stack
+            });
+            
+            // Email failed but OTP is saved - still return success
+            // User can use the OTP if they somehow get it (or for testing)
+            console.log('⚠️ Email failed but OTP is saved in database');
         }
 
         return res.json({
@@ -294,7 +312,6 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
-
         const identifier = (email || '').trim();
 
         console.log('🔁 Verify-OTP request body:', req.body);
@@ -307,7 +324,6 @@ router.post('/verify-otp', async (req, res) => {
             });
         }
 
-        // Same identifier logic as forgot-password
         const [users] = await db.query(
             `SELECT user_id, email, username, phone, reset_password_otp, reset_password_expires 
              FROM users 
@@ -331,7 +347,6 @@ router.post('/verify-otp', async (req, res) => {
         }
 
         const user = users[0];
-
         const storedOtp = user.reset_password_otp;
         const expires = user.reset_password_expires;
 
@@ -359,6 +374,8 @@ router.post('/verify-otp', async (req, res) => {
             });
         }
 
+        console.log('✅ OTP verified successfully for:', user.email);
+
         return res.json({
             success: true,
             message: 'OTP verified',
@@ -382,7 +399,6 @@ router.post('/verify-otp', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
     try {
         const { email, otp, new_password } = req.body;
-
         const identifier = (email || '').trim();
 
         console.log('🔁 Reset-password request body:', req.body);
@@ -434,7 +450,7 @@ router.post('/reset-password', async (req, res) => {
             [hashedPassword, user.user_id]
         );
 
-        console.log('✅ Password reset for user ID:', user.user_id);
+        console.log('✅ Password reset successfully for user ID:', user.user_id);
 
         return res.json({
             success: true,
@@ -544,10 +560,8 @@ router.post('/upload-profile-picture', verifyToken, upload.single('image'), asyn
             });
         }
 
-        // Construct the URL for the uploaded image
         const imageUrl = `${req.protocol}://${req.get('host')}/uploads/profiles/${req.file.filename}`;
 
-        // Update user's profile_image_url in database
         await db.query(
             'UPDATE users SET profile_image_url = ? WHERE user_id = ?',
             [imageUrl, req.userId]
@@ -583,10 +597,8 @@ router.post('/upload-banner', verifyToken, upload.single('image'), async (req, r
             });
         }
 
-        // Construct the URL for the uploaded image
         const imageUrl = `${req.protocol}://${req.get('host')}/uploads/banners/${req.file.filename}`;
 
-        // Update user's banner_image_url in database
         await db.query(
             'UPDATE users SET banner_image_url = ? WHERE user_id = ?',
             [imageUrl, req.userId]
