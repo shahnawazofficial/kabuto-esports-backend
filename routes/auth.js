@@ -289,19 +289,29 @@ router.post('/verify-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
 
-        console.log('🔁 Verify-OTP request for:', email, 'otp:', otp);
+        const identifier = (email || '').trim();
 
-        if (!email || !otp) {
+        console.log('🔁 Verify-OTP request body:', req.body);
+        console.log('🔁 Verify-OTP identifier:', identifier, 'otp:', otp);
+
+        if (!identifier || !otp) {
             return res.status(400).json({
                 success: false,
-                message: 'Email and OTP are required'
+                message: 'Email / username / phone and OTP are required'
             });
         }
 
+        // Same identifier logic as forgot-password
         const [users] = await db.query(
-            'SELECT reset_password_otp, reset_password_expires FROM users WHERE email = ?',
-            [email]
+            `SELECT user_id, email, username, phone, reset_password_otp, reset_password_expires 
+             FROM users 
+             WHERE LOWER(email) = LOWER(?) 
+                OR LOWER(username) = LOWER(?) 
+                OR phone = ?`,
+            [identifier, identifier, identifier]
         );
+
+        console.log('🔍 Verify-OTP DB users result:', users);
 
         if (users.length === 0) {
             return res.json({
@@ -367,19 +377,28 @@ router.post('/reset-password', async (req, res) => {
     try {
         const { email, otp, new_password } = req.body;
 
-        console.log('🔁 Reset-password request for:', email);
+        const identifier = (email || '').trim();
 
-        if (!email || !otp || !new_password) {
+        console.log('🔁 Reset-password request body:', req.body);
+        console.log('🔁 Reset-password identifier:', identifier);
+
+        if (!identifier || !otp || !new_password) {
             return res.status(400).json({
                 success: false,
-                message: 'Email, OTP and new password are required'
+                message: 'Email / username / phone, OTP and new password are required'
             });
         }
 
         const [users] = await db.query(
-            'SELECT user_id, reset_password_otp, reset_password_expires FROM users WHERE email = ?',
-            [email]
+            `SELECT user_id, email, username, phone, reset_password_otp, reset_password_expires 
+             FROM users 
+             WHERE LOWER(email) = LOWER(?) 
+                OR LOWER(username) = LOWER(?) 
+                OR phone = ?`,
+            [identifier, identifier, identifier]
         );
+
+        console.log('🔍 Reset-password DB users result:', users);
 
         if (users.length === 0) {
             return res.status(400).json({
@@ -426,6 +445,7 @@ router.post('/reset-password', async (req, res) => {
         });
     }
 });
+
 
 // ROUTE: Get Current User Profile
 router.get('/profile', verifyToken, async (req, res) => {
