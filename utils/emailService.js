@@ -1,23 +1,15 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter with proper Hostinger SMTP settings
+// Gmail SMTP configuration (works better with cloud services)
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 465,
-    secure: true, // true for port 465, false for 587
+    service: 'gmail', // Using Gmail service
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
     },
     tls: {
-        rejectUnauthorized: false, // Accept self-signed certificates
-        minVersion: 'TLSv1.2'
-    },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    debug: true, // Enable debug logs
-    logger: true // Enable logger
+        rejectUnauthorized: false
+    }
 });
 
 // Verify SMTP connection on startup
@@ -25,18 +17,12 @@ transporter.verify(function(error, success) {
     if (error) {
         console.error('❌ SMTP connection error:', error);
         console.error('SMTP Config:', {
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
-            user: process.env.SMTP_USER,
-            secure: true
+            service: 'gmail',
+            user: process.env.SMTP_USER
         });
     } else {
         console.log('✅ SMTP Server is ready to send emails');
-        console.log('SMTP Config:', {
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
-            user: process.env.SMTP_USER
-        });
+        console.log('📧 Using Gmail SMTP');
     }
 });
 
@@ -71,25 +57,19 @@ async function sendOtpEmail(toEmail, otp) {
             `
         };
 
-        console.log('📧 Sending email with options:', {
-            from: mailOptions.from,
-            to: mailOptions.to,
-            subject: mailOptions.subject
-        });
+        console.log('📧 Sending email...');
 
         const info = await transporter.sendMail(mailOptions);
         
         console.log('✅ OTP email sent successfully!');
         console.log('📨 Message ID:', info.messageId);
-        console.log('📨 Response:', info.response);
         
         return info;
     } catch (error) {
         console.error('❌ Error in sendOtpEmail function:', error);
         console.error('❌ Error details:', {
             message: error.message,
-            code: error.code,
-            command: error.command
+            code: error.code
         });
         throw error;
     }
