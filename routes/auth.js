@@ -6,6 +6,7 @@ const db = require('../config/database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sendOtpEmail } = require('../utils/emailService'); // 👈 email sender
 
 // Debug: make sure this file is actually loaded
 console.log('✅ auth routes loaded');
@@ -264,8 +265,14 @@ router.post('/forgot-password', async (req, res) => {
             [otp, expiresAt, user.user_id]
         );
 
-        // For now, just log the OTP; later you can send via email
-        console.log(`📧 Password reset OTP for user_id=${user.user_id}, email=${user.email}, username=${user.username}, phone=${user.phone}: ${otp}`);
+        // 🔥 send OTP email via Hostinger
+        try {
+            await sendOtpEmail(user.email, otp);
+            console.log(`📧 Password reset OTP email sent to ${user.email}: ${otp}`);
+        } catch (emailErr) {
+            console.error('❌ Error sending OTP email:', emailErr);
+            // (OTP is still stored in DB, so technically user can reset if they somehow get the code)
+        }
 
         return res.json({
             success: true,
@@ -282,7 +289,6 @@ router.post('/forgot-password', async (req, res) => {
         });
     }
 });
-
 
 // 2️⃣ Verify OTP
 router.post('/verify-otp', async (req, res) => {
@@ -445,7 +451,6 @@ router.post('/reset-password', async (req, res) => {
         });
     }
 });
-
 
 // ROUTE: Get Current User Profile
 router.get('/profile', verifyToken, async (req, res) => {
