@@ -15,7 +15,7 @@ async function sendOtpEmail(toEmail, otp) {
         console.log(`📧 Preparing to send OTP email via Resend to: ${toEmail}`);
         
         const { data, error } = await resend.emails.send({
-            from: 'Kabuto Esports <onboarding@resend.dev>', // For testing - change later
+            from: 'Kabuto Esports <verificationmail@kabutoesports.com>', //  - change later
             to: toEmail,
             subject: 'Kabuto Esports - Password Reset OTP',
             html: `
