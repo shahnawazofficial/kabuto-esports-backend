@@ -69,12 +69,14 @@ const verifyToken = (req, res, next) => {
 };
 
 // ROUTE: Register New User
+// ROUTE: Register New User (UPDATED WITH SPECIFIC ERROR MESSAGES)
 router.post('/register', async (req, res) => {
     try {
         const { username, email, phone, password, full_name, bgmi_id } = req.body;
 
         console.log('📝 Registration request:', { username, email, phone });
 
+        // Validate required fields
         if (!username || !email || !phone || !password) {
             return res.status(400).json({
                 success: false,
@@ -82,18 +84,51 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        const [existingUsers] = await db.query(
-            'SELECT * FROM users WHERE username = ? OR email = ? OR phone = ?',
-            [username, email, phone]
+        // ✅ CHECK EACH FIELD SEPARATELY FOR SPECIFIC ERROR MESSAGES
+        
+        // Check if username exists
+        const [usernameCheck] = await db.query(
+            'SELECT username FROM users WHERE username = ?',
+            [username]
         );
 
-        if (existingUsers.length > 0) {
+        if (usernameCheck.length > 0) {
+            console.log('❌ Username already exists:', username);
             return res.status(400).json({
                 success: false,
-                message: 'Username, email, or phone already exists'
+                message: 'This username is already taken. Please choose another one.'
             });
         }
 
+        // Check if email exists
+        const [emailCheck] = await db.query(
+            'SELECT email FROM users WHERE email = ?',
+            [email]
+        );
+
+        if (emailCheck.length > 0) {
+            console.log('❌ Email already exists:', email);
+            return res.status(400).json({
+                success: false,
+                message: 'This email is already registered. Please use another email or login.'
+            });
+        }
+
+        // Check if phone exists
+        const [phoneCheck] = await db.query(
+            'SELECT phone FROM users WHERE phone = ?',
+            [phone]
+        );
+
+        if (phoneCheck.length > 0) {
+            console.log('❌ Phone already exists:', phone);
+            return res.status(400).json({
+                success: false,
+                message: 'This phone number is already registered. Please use another number or login.'
+            });
+        }
+
+        // ✅ ALL CHECKS PASSED - CREATE USER
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const [result] = await db.query(
@@ -112,7 +147,7 @@ router.post('/register', async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: 'Registration successful! Welcome to Kabuto Esports.',
             data: {
                 user_id: result.insertId,
                 username: username,
@@ -125,7 +160,7 @@ router.post('/register', async (req, res) => {
         console.error('❌ Register error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error registering user',
+            message: 'Server error during registration. Please try again later.',
             error: error.message
         });
     }
