@@ -155,7 +155,7 @@ router.post('/login', async (req, res) => {
             console.log('❌ User not found:', username);
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Username, email or phone not registered. Please sign up first.'
             });
         }
 
@@ -165,7 +165,7 @@ router.post('/login', async (req, res) => {
             console.log('❌ Account not active:', user.account_status);
             return res.status(403).json({
                 success: false,
-                message: `Account is ${user.account_status}`
+                message: `Your account is ${user.account_status}. Please contact support.`
             });
         }
 
@@ -175,7 +175,7 @@ router.post('/login', async (req, res) => {
             console.log('❌ Invalid password for user:', username);
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Incorrect password. Please try again.'
             });
         }
 
@@ -207,7 +207,7 @@ router.post('/login', async (req, res) => {
         console.error('❌ Login error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error logging in',
+            message: 'Server error. Please try again later.',
             error: error.message
         });
     }
