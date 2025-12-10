@@ -6,9 +6,8 @@ const db = require('../config/database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sendOtpEmail } = require('../utils/emailService'); // 👈 email sender
+const { sendOtpEmail } = require('../utils/emailService');
 
-// Debug: make sure this file is actually loaded
 console.log('✅ auth routes loaded');
 
 // MULTER CONFIGURATION FOR IMAGE UPLOADS
@@ -17,7 +16,6 @@ const storage = multer.diskStorage({
         const uploadType = req.path.includes('profile-picture') ? 'profiles' : 'banners';
         const uploadPath = path.join(__dirname, `../uploads/${uploadType}`);
 
-        // Create directory if it doesn't exist
         if (!fs.existsSync(uploadPath)) {
             fs.mkdirSync(uploadPath, { recursive: true });
         }
@@ -31,7 +29,6 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    // Accept images only
     if (file.mimetype.startsWith('image/')) {
         cb(null, true);
     } else {
@@ -42,7 +39,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+    limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 // MIDDLEWARE: Verify JWT Token
@@ -68,8 +65,9 @@ const verifyToken = (req, res, next) => {
     });
 };
 
-// ROUTE: Register New User
-// ROUTE: Register New User (UPDATED WITH SPECIFIC ERROR MESSAGES)
+// ===============================
+// REGISTER ROUTE - WITH SPECIFIC ERROR MESSAGES
+// ===============================
 router.post('/register', async (req, res) => {
     try {
         const { username, email, phone, password, full_name, bgmi_id } = req.body;
@@ -84,9 +82,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // ✅ CHECK EACH FIELD SEPARATELY FOR SPECIFIC ERROR MESSAGES
-        
-        // Check if username exists
+        // ✅ CHECK USERNAME
         const [usernameCheck] = await db.query(
             'SELECT username FROM users WHERE username = ?',
             [username]
@@ -100,7 +96,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Check if email exists
+        // ✅ CHECK EMAIL
         const [emailCheck] = await db.query(
             'SELECT email FROM users WHERE email = ?',
             [email]
@@ -114,7 +110,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Check if phone exists
+        // ✅ CHECK PHONE
         const [phoneCheck] = await db.query(
             'SELECT phone FROM users WHERE phone = ?',
             [phone]
@@ -166,7 +162,9 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// ROUTE: Login User
+// ===============================
+// LOGIN ROUTE - WITH SPECIFIC ERROR MESSAGES
+// ===============================
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -186,6 +184,7 @@ router.post('/login', async (req, res) => {
             [username, username, username]
         );
 
+        // ❌ USER NOT FOUND
         if (users.length === 0) {
             console.log('❌ User not found:', username);
             return res.status(401).json({
@@ -196,6 +195,7 @@ router.post('/login', async (req, res) => {
 
         const user = users[0];
 
+        // Check account status
         if (user.account_status !== 'active') {
             console.log('❌ Account not active:', user.account_status);
             return res.status(403).json({
@@ -204,6 +204,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        // ❌ WRONG PASSWORD
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
         if (!isValidPassword) {
@@ -214,6 +215,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        // ✅ LOGIN SUCCESSFUL
         await db.query(
             'UPDATE users SET last_login = NOW() WHERE user_id = ?',
             [user.user_id]
@@ -249,22 +251,19 @@ router.post('/login', async (req, res) => {
 });
 
 // ===============================
-// FORGOT PASSWORD / OTP ROUTES
+// FORGOT PASSWORD - WITH SPECIFIC ERROR MESSAGES
 // ===============================
-
-// 1️⃣ Send OTP (4-digit, 10 min expiry)
 router.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
         const identifier = (email || '').trim();
 
-        console.log('🔁 Forgot-password request body:', req.body);
-        console.log('🔁 Using identifier:', identifier);
+        console.log('🔁 Forgot-password request:', identifier);
 
         if (!identifier) {
             return res.status(400).json({
                 success: false,
-                message: 'Email / username / phone is required'
+                message: 'Email, username or phone is required'
             });
         }
 
@@ -278,12 +277,12 @@ router.post('/forgot-password', async (req, res) => {
             [identifier, identifier, identifier]
         );
 
-        console.log('🔍 Forgot-password DB users result:', users);
-
+        // ❌ USER NOT FOUND - SPECIFIC ERROR
         if (users.length === 0) {
+            console.log('❌ User not found for forgot password:', identifier);
             return res.status(404).json({
                 success: false,
-                message: 'User with this identifier not found'
+                message: 'No account found with this email, username or phone number. Please sign up first.'
             });
         }
 
@@ -293,7 +292,7 @@ router.post('/forgot-password', async (req, res) => {
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-        // Save OTP to database FIRST
+        // Save OTP to database
         await db.query(
             'UPDATE users SET reset_password_otp = ?, reset_password_expires = ? WHERE user_id = ?',
             [otp, expiresAt, user.user_id]
@@ -301,11 +300,10 @@ router.post('/forgot-password', async (req, res) => {
 
         console.log(`✅ OTP saved to database for user ${user.email}: ${otp}`);
 
-        // Try to send email with timeout and better error handling
+        // Try to send email
         try {
             console.log(`📧 Attempting to send OTP email to ${user.email}...`);
             
-            // Set a timeout for email sending (15 seconds)
             const emailPromise = sendOtpEmail(user.email, otp);
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Email sending timeout')), 15000)
@@ -316,20 +314,12 @@ router.post('/forgot-password', async (req, res) => {
             console.log(`✅ OTP email sent successfully to ${user.email}`);
         } catch (emailErr) {
             console.error('❌ Error sending OTP email:', emailErr);
-            console.error('❌ Email error details:', {
-                message: emailErr.message,
-                code: emailErr.code,
-                stack: emailErr.stack
-            });
-            
-            // Email failed but OTP is saved - still return success
-            // User can use the OTP if they somehow get it (or for testing)
             console.log('⚠️ Email failed but OTP is saved in database');
         }
 
         return res.json({
             success: true,
-            message: 'OTP sent successfully',
+            message: 'OTP sent successfully to your email',
             data: null
         });
 
@@ -337,20 +327,21 @@ router.post('/forgot-password', async (req, res) => {
         console.error('❌ Forgot password error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Error sending OTP',
+            message: 'Server error. Please try again later.',
             error: error.message
         });
     }
 });
 
-// 2️⃣ Verify OTP
+// ===============================
+// VERIFY OTP
+// ===============================
 router.post('/verify-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
         const identifier = (email || '').trim();
 
-        console.log('🔁 Verify-OTP request body:', req.body);
-        console.log('🔁 Verify-OTP identifier:', identifier, 'otp:', otp);
+        console.log('🔁 Verify-OTP request:', identifier, 'otp:', otp);
 
         if (!identifier || !otp) {
             return res.status(400).json({
@@ -367,8 +358,6 @@ router.post('/verify-otp', async (req, res) => {
                 OR phone = ?`,
             [identifier, identifier, identifier]
         );
-
-        console.log('🔍 Verify-OTP DB users result:', users);
 
         if (users.length === 0) {
             return res.json({
@@ -430,14 +419,15 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
-// 3️⃣ Reset Password
+// ===============================
+// RESET PASSWORD
+// ===============================
 router.post('/reset-password', async (req, res) => {
     try {
         const { email, otp, new_password } = req.body;
         const identifier = (email || '').trim();
 
-        console.log('🔁 Reset-password request body:', req.body);
-        console.log('🔁 Reset-password identifier:', identifier);
+        console.log('🔁 Reset-password request:', identifier);
 
         if (!identifier || !otp || !new_password) {
             return res.status(400).json({
@@ -454,8 +444,6 @@ router.post('/reset-password', async (req, res) => {
                 OR phone = ?`,
             [identifier, identifier, identifier]
         );
-
-        console.log('🔍 Reset-password DB users result:', users);
 
         if (users.length === 0) {
             return res.status(400).json({
@@ -503,7 +491,9 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
-// ROUTE: Get Current User Profile
+// ===============================
+// PROFILE ROUTES
+// ===============================
 router.get('/profile', verifyToken, async (req, res) => {
     try {
         console.log('👤 Profile request for user ID:', req.userId);
@@ -541,7 +531,6 @@ router.get('/profile', verifyToken, async (req, res) => {
     }
 });
 
-// ROUTE: Update User Profile
 router.put('/profile', verifyToken, async (req, res) => {
     try {
         const { full_name, bio, bgmi_id, bgmi_username, date_of_birth, gender, city, state } = req.body;
@@ -579,11 +568,9 @@ router.put('/profile', verifyToken, async (req, res) => {
     }
 });
 
-// ==========================================
+// ===============================
 // IMAGE UPLOAD ROUTES
-// ==========================================
-
-// ROUTE: Upload Profile Picture
+// ===============================
 router.post('/upload-profile-picture', verifyToken, upload.single('image'), async (req, res) => {
     try {
         console.log('📸 Profile picture upload for user ID:', req.userId);
@@ -620,7 +607,6 @@ router.post('/upload-profile-picture', verifyToken, upload.single('image'), asyn
     }
 });
 
-// ROUTE: Upload Banner Image
 router.post('/upload-banner', verifyToken, upload.single('image'), async (req, res) => {
     try {
         console.log('🖼️ Banner upload for user ID:', req.userId);
