@@ -1,12 +1,10 @@
 // ============================================
 // NOTIFICATION ROUTES
 // ============================================
-
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
-const { verifyToken } = require('../middleware/auth');
-const { verifyAdminToken } = require('../middleware/adminAuth');
+const pool = require('../config/database');
+const auth = require('../middleware/auth');
 const {
     sendNotificationToUser,
     sendNotificationToMultipleUsers,
@@ -14,14 +12,79 @@ const {
 } = require('../config/firebase');
 
 // ============================================
+// ADMIN AUTH MIDDLEWARE (Inline)
+// ============================================
+const adminAuth = async (req, res, next) => {
+    try {
+        const authHeader = req.header('Authorization');
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token, authorization denied'
+            });
+        }
+        
+        const token = authHeader.substring(7);
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Check if user is admin/super_user
+        const [users] = await pool.query(
+            'SELECT user_id, username, role FROM users WHERE user_id = ?',
+            [decoded.user_id]
+        );
+        
+        if (users.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+        
+        const user = users[0];
+        
+        // Check admin privileges
+        if (user.role !== 'super_user' && user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Admin privileges required.'
+            });
+        }
+        
+        req.user = {
+            ...decoded,
+            role: user.role
+        };
+        
+        next();
+        
+    } catch (error) {
+        console.error('Admin auth error:', error.message);
+        
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                success: false,
+                message: 'Token has expired'
+            });
+        }
+        
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid token'
+        });
+    }
+};
+
+// ============================================
 // USER ROUTES - Save/Update FCM Token
 // ============================================
 
 // Save or update user's FCM token
-router.post('/token', verifyToken, async (req, res) => {
+router.post('/token', auth, async (req, res) => {
     try {
         const { fcm_token, device_type = 'android' } = req.body;
-        const userId = req.user.userId;
+        const userId = req.user.user_id;
 
         if (!fcm_token) {
             return res.status(400).json({
@@ -40,13 +103,12 @@ router.post('/token', verifyToken, async (req, res) => {
                 updated_at = CURRENT_TIMESTAMP
         `;
 
-        await db.query(query, [userId, fcm_token, device_type]);
+        await pool.query(query, [userId, fcm_token, device_type]);
 
         res.json({
             success: true,
             message: 'FCM token saved successfully'
         });
-
     } catch (error) {
         console.error('Save FCM token error:', error);
         res.status(500).json({
@@ -57,9 +119,9 @@ router.post('/token', verifyToken, async (req, res) => {
 });
 
 // Get user's notifications
-router.get('/user', verifyToken, async (req, res) => {
+router.get('/user', auth, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.user_id;
         const limit = parseInt(req.query.limit) || 50;
         const offset = parseInt(req.query.offset) || 0;
 
@@ -81,10 +143,10 @@ router.get('/user', verifyToken, async (req, res) => {
             LIMIT ? OFFSET ?
         `;
 
-        const [notifications] = await db.query(query, [userId, limit, offset]);
+        const [notifications] = await pool.query(query, [userId, limit, offset]);
 
         // Get unread count
-        const [unreadCount] = await db.query(
+        const [unreadCount] = await pool.query(
             `SELECT COUNT(*) as count FROM notification_logs 
              WHERE user_id = ? AND read_at IS NULL`,
             [userId]
@@ -98,7 +160,6 @@ router.get('/user', verifyToken, async (req, res) => {
                 total: notifications.length
             }
         });
-
     } catch (error) {
         console.error('Get notifications error:', error);
         res.status(500).json({
@@ -109,12 +170,12 @@ router.get('/user', verifyToken, async (req, res) => {
 });
 
 // Mark notification as read
-router.post('/read/:notificationId', verifyToken, async (req, res) => {
+router.post('/read/:notificationId', auth, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.user_id;
         const notificationId = req.params.notificationId;
 
-        await db.query(
+        await pool.query(
             `UPDATE notification_logs 
              SET read_at = CURRENT_TIMESTAMP 
              WHERE notification_id = ? AND user_id = ? AND read_at IS NULL`,
@@ -125,7 +186,6 @@ router.post('/read/:notificationId', verifyToken, async (req, res) => {
             success: true,
             message: 'Notification marked as read'
         });
-
     } catch (error) {
         console.error('Mark read error:', error);
         res.status(500).json({
@@ -136,11 +196,11 @@ router.post('/read/:notificationId', verifyToken, async (req, res) => {
 });
 
 // Mark all notifications as read
-router.post('/read-all', verifyToken, async (req, res) => {
+router.post('/read-all', auth, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.user_id;
 
-        await db.query(
+        await pool.query(
             `UPDATE notification_logs 
              SET read_at = CURRENT_TIMESTAMP 
              WHERE user_id = ? AND read_at IS NULL`,
@@ -151,7 +211,6 @@ router.post('/read-all', verifyToken, async (req, res) => {
             success: true,
             message: 'All notifications marked as read'
         });
-
     } catch (error) {
         console.error('Mark all read error:', error);
         res.status(500).json({
@@ -166,7 +225,7 @@ router.post('/read-all', verifyToken, async (req, res) => {
 // ============================================
 
 // Send notification from admin panel
-router.post('/admin/send', verifyAdminToken, async (req, res) => {
+router.post('/admin/send', adminAuth, async (req, res) => {
     try {
         const {
             type,
@@ -180,7 +239,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
             schedule_time
         } = req.body;
 
-        const adminId = req.admin.admin_id;
+        const adminId = req.user.user_id;
 
         // Validate required fields
         if (!type || !title || !message || !target_audience) {
@@ -198,17 +257,21 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
             case 'all':
                 query = 'SELECT user_id FROM users WHERE is_active = 1';
                 break;
+
             case 'active':
                 query = `SELECT DISTINCT user_id FROM users 
                          WHERE is_active = 1 AND last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
                 break;
+
             case 'inactive':
                 query = `SELECT user_id FROM users 
                          WHERE is_active = 1 AND (last_login < DATE_SUB(NOW(), INTERVAL 7 DAY) OR last_login IS NULL)`;
                 break;
+
             case 'low_wallet':
                 query = `SELECT user_id FROM wallet WHERE balance < 100`;
                 break;
+
             case 'specific':
                 if (!specific_users) {
                     return res.status(400).json({
@@ -218,6 +281,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
                 }
                 targetUserIds = specific_users.split(',').map(id => parseInt(id.trim()));
                 break;
+
             default:
                 return res.status(400).json({
                     success: false,
@@ -227,7 +291,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
 
         // Execute query if not specific users
         if (target_audience !== 'specific') {
-            const [users] = await db.query(query);
+            const [users] = await pool.query(query);
             targetUserIds = users.map(u => u.user_id);
         }
 
@@ -239,7 +303,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
         }
 
         // Save notification to database
-        const [notificationResult] = await db.query(
+        const [notificationResult] = await pool.query(
             `INSERT INTO notifications 
              (admin_id, notification_type, title, message, target_audience, 
               specific_user_ids, deep_link, tournament_id, send_option, 
@@ -277,7 +341,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
         }
 
         // Get FCM tokens for target users
-        const [tokens] = await db.query(
+        const [tokens] = await pool.query(
             `SELECT DISTINCT fcm_token FROM user_fcm_tokens 
              WHERE user_id IN (?) AND fcm_token IS NOT NULL`,
             [targetUserIds]
@@ -315,8 +379,8 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
             const logValues = targetUserIds.map(userId => 
                 [notificationId, userId]
             );
-
-            await db.query(
+            
+            await pool.query(
                 `INSERT INTO notification_logs (notification_id, user_id) VALUES ?`,
                 [logValues]
             );
@@ -343,7 +407,7 @@ router.post('/admin/send', verifyAdminToken, async (req, res) => {
 });
 
 // Get notification history for admin
-router.get('/admin/history', verifyAdminToken, async (req, res) => {
+router.get('/admin/history', adminAuth, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
         const offset = parseInt(req.query.offset) || 0;
@@ -351,20 +415,19 @@ router.get('/admin/history', verifyAdminToken, async (req, res) => {
         const query = `
             SELECT 
                 n.*,
-                a.username as admin_username
+                u.username as admin_username
             FROM notifications n
-            LEFT JOIN admins a ON n.admin_id = a.admin_id
+            LEFT JOIN users u ON n.admin_id = u.user_id
             ORDER BY n.sent_at DESC
             LIMIT ? OFFSET ?
         `;
 
-        const [notifications] = await db.query(query, [limit, offset]);
+        const [notifications] = await pool.query(query, [limit, offset]);
 
         res.json({
             success: true,
             data: notifications
         });
-
     } catch (error) {
         console.error('Get history error:', error);
         res.status(500).json({
@@ -375,21 +438,21 @@ router.get('/admin/history', verifyAdminToken, async (req, res) => {
 });
 
 // Get notification stats for admin
-router.get('/admin/stats', verifyAdminToken, async (req, res) => {
+router.get('/admin/stats', adminAuth, async (req, res) => {
     try {
         // Total sent
-        const [totalSent] = await db.query(
+        const [totalSent] = await pool.query(
             `SELECT COUNT(*) as count FROM notifications WHERE status = 'sent'`
         );
 
         // Sent today
-        const [sentToday] = await db.query(
+        const [sentToday] = await pool.query(
             `SELECT COUNT(*) as count FROM notifications 
              WHERE status = 'sent' AND DATE(sent_at) = CURDATE()`
         );
 
         // Active users (with FCM tokens)
-        const [activeUsers] = await db.query(
+        const [activeUsers] = await pool.query(
             `SELECT COUNT(DISTINCT user_id) as count FROM user_fcm_tokens`
         );
 
@@ -401,7 +464,6 @@ router.get('/admin/stats', verifyAdminToken, async (req, res) => {
                 active_users: activeUsers[0].count
             }
         });
-
     } catch (error) {
         console.error('Get stats error:', error);
         res.status(500).json({
