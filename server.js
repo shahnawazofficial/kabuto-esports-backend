@@ -23,6 +23,7 @@ const walletRoutes = require('./routes/wallet');
 const hostRoutes = require('./routes/host');
 const payuRoutes = require('./routes/payu');
 const adminRoutes = require('./routes/admin');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 
@@ -92,6 +93,8 @@ app.use('/api/host', hostRoutes);
 app.use('/api/payu', payuRoutes);
 app.use('/api/admin', adminRoutes);
 
+app.use('/api/notifications', notificationRoutes);
+
 app.use('/uploads', express.static('uploads'));
 
 // ============================================
@@ -147,3 +150,4 @@ process.on('SIGINT', () => {
 });
 
 module.exports = app;
+    
