@@ -5,14 +5,17 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const auth = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 const {
     sendNotificationToUser,
     sendNotificationToMultipleUsers,
     sendNotificationToTopic
 } = require('../config/firebase');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'kabuto_admin_secret_key_2024';
+
 // ============================================
-// ADMIN AUTH MIDDLEWARE (Inline)
+// ADMIN AUTH MIDDLEWARE (For Admins Table)
 // ============================================
 const adminAuth = async (req, res, next) => {
     try {
@@ -26,41 +29,49 @@ const adminAuth = async (req, res, next) => {
         }
         
         const token = authHeader.substring(7);
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
         
-        // Check if user is admin/super_user
-        const [users] = await pool.query(
-            'SELECT user_id, username, role FROM users WHERE user_id = ?',
-            [decoded.user_id]
-        );
+        console.log('🔐 Admin Auth - Decoded token:', decoded);
         
-        if (users.length === 0) {
-            return res.status(401).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
-        
-        const user = users[0];
-        
-        // Check admin privileges
-        if (user.role !== 'super_user' && user.role !== 'admin') {
+        // Check if this is an admin token (has admin_id)
+        if (!decoded.admin_id) {
             return res.status(403).json({
                 success: false,
-                message: 'Access denied. Admin privileges required.'
+                message: 'Access denied. Admin token required.'
             });
         }
         
-        req.user = {
-            ...decoded,
-            role: user.role
-        };
+        // Check if admin exists in admins table
+        const [admins] = await pool.query(
+            'SELECT * FROM admins WHERE admin_id = ? AND is_active = true',
+            [decoded.admin_id]
+        );
+        
+        if (admins.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Admin not found or account disabled'
+            });
+        }
+        
+        const admin = admins[0];
+        
+        // Check if super admin (only super admins can send notifications)
+        if (admin.admin_role !== 'super') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Super admin privileges required.'
+            });
+        }
+        
+        console.log('✅ Super admin verified:', admin.username);
+        
+        req.admin = admin;
         
         next();
         
     } catch (error) {
-        console.error('Admin auth error:', error.message);
+        console.error('❌ Admin auth error:', error.message);
         
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({
@@ -221,7 +232,7 @@ router.post('/read-all', auth, async (req, res) => {
 });
 
 // ============================================
-// ADMIN ROUTES - Send Notifications
+// ADMIN ROUTES - Send Notifications (SUPER ADMIN ONLY)
 // ============================================
 
 // Send notification from admin panel
@@ -239,7 +250,9 @@ router.post('/admin/send', adminAuth, async (req, res) => {
             schedule_time
         } = req.body;
 
-        const adminId = req.user.user_id;
+        const adminId = req.admin.admin_id;
+
+        console.log('📤 Sending notification - Admin:', req.admin.username);
 
         // Validate required fields
         if (!type || !title || !message || !target_audience) {
@@ -302,6 +315,8 @@ router.post('/admin/send', adminAuth, async (req, res) => {
             });
         }
 
+        console.log(`🎯 Target users: ${targetUserIds.length}`);
+
         // Save notification to database
         const [notificationResult] = await pool.query(
             `INSERT INTO notifications 
@@ -327,6 +342,8 @@ router.post('/admin/send', adminAuth, async (req, res) => {
 
         const notificationId = notificationResult.insertId;
 
+        console.log(`✅ Notification saved - ID: ${notificationId}`);
+
         // If schedule for later, don't send now
         if (send_option === 'schedule') {
             return res.json({
@@ -348,6 +365,8 @@ router.post('/admin/send', adminAuth, async (req, res) => {
         );
 
         const fcmTokens = tokens.map(t => t.fcm_token);
+
+        console.log(`📱 FCM tokens found: ${fcmTokens.length}`);
 
         if (fcmTokens.length === 0) {
             return res.json({
@@ -386,6 +405,8 @@ router.post('/admin/send', adminAuth, async (req, res) => {
             );
         }
 
+        console.log(`✅ Notification sent - Success: ${result.successCount}, Failed: ${result.failureCount}`);
+
         res.json({
             success: true,
             message: 'Notification sent successfully',
@@ -415,9 +436,9 @@ router.get('/admin/history', adminAuth, async (req, res) => {
         const query = `
             SELECT 
                 n.*,
-                u.username as admin_username
+                a.username as admin_username
             FROM notifications n
-            LEFT JOIN users u ON n.admin_id = u.user_id
+            LEFT JOIN admins a ON n.admin_id = a.admin_id
             ORDER BY n.sent_at DESC
             LIMIT ? OFFSET ?
         `;

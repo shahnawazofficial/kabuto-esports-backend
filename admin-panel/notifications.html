@@ -371,7 +371,6 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -412,7 +411,7 @@
         function initEmojiPickers() {
             const titlePicker = document.getElementById('titleEmojiPicker');
             const messagePicker = document.getElementById('messageEmojiPicker');
-
+            
             [titlePicker, messagePicker].forEach(picker => {
                 picker.innerHTML = emojis.map(emoji => 
                     `<button type="button" class="emoji-btn" onclick="insertEmoji('${emoji}', '${picker.id}')">${emoji}</button>`
@@ -440,8 +439,10 @@
         function updateCharCount() {
             const title = document.getElementById('notificationTitle').value;
             const message = document.getElementById('notificationMessage').value;
+            
             document.getElementById('titleCount').textContent = title.length;
             document.getElementById('messageCount').textContent = message.length;
+            
             updatePreview();
         }
 
@@ -449,6 +450,7 @@
         function updatePreview() {
             const title = document.getElementById('notificationTitle').value || 'Your Title Here';
             const message = document.getElementById('notificationMessage').value || 'Your message will appear here...';
+            
             document.getElementById('previewTitle').textContent = title;
             document.getElementById('previewMessage').textContent = message;
         }
@@ -545,9 +547,10 @@
             document.getElementById('notificationTitle').value = template.title;
             document.getElementById('notificationMessage').value = template.message;
             document.getElementById('notificationType').value = template.type;
+            
             updatePreview();
             updateCharCount();
-
+            
             // Switch to compose tab
             bootstrap.Tab.getOrCreateInstance(document.getElementById('compose-tab')).show();
         }
@@ -555,7 +558,7 @@
         // Form submit
         document.getElementById('notificationForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-
+            
             const formData = {
                 type: document.getElementById('notificationType').value,
                 title: document.getElementById('notificationTitle').value,
@@ -573,7 +576,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/admin/notifications/send`, {
+                const response = await fetch(`${API_URL}/notifications/admin/send`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${adminToken}`,
@@ -583,7 +586,7 @@
                 });
 
                 const data = await response.json();
-
+                
                 if (data.success) {
                     alert(`Notification ${formData.send_option === 'now' ? 'sent' : 'scheduled'} successfully!`);
                     resetForm();
@@ -607,22 +610,23 @@
         // Load history
         async function loadHistory() {
             try {
-                const response = await fetch(`${API_URL}/admin/notifications/history`, {
+                const response = await fetch(`${API_URL}/notifications/admin/history`, {
                     headers: { 'Authorization': `Bearer ${adminToken}` }
                 });
+                
                 const data = await response.json();
-
                 const tbody = document.getElementById('historyTableBody');
+                
                 if (data.success && data.data.length > 0) {
                     tbody.innerHTML = data.data.map(n => `
                         <tr>
-                            <td>#${n.id}</td>
+                            <td>#${n.notification_id}</td>
                             <td><strong>${n.title}</strong></td>
                             <td>${n.message.substring(0, 50)}...</td>
                             <td><span class="badge bg-secondary">${n.target_audience}</span></td>
                             <td>${n.recipients_count || 0}</td>
                             <td>${new Date(n.sent_at).toLocaleString()}</td>
-                            <td><span class="badge bg-success">Sent</span></td>
+                            <td><span class="badge bg-success">${n.status}</span></td>
                         </tr>
                     `).join('');
                 } else {
@@ -630,17 +634,19 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load history</td></tr>';
             }
         }
 
         // Load stats
         async function loadStats() {
             try {
-                const response = await fetch(`${API_URL}/admin/notifications/stats`, {
+                const response = await fetch(`${API_URL}/notifications/admin/stats`, {
                     headers: { 'Authorization': `Bearer ${adminToken}` }
                 });
+                
                 const data = await response.json();
-
+                
                 if (data.success) {
                     document.getElementById('totalSent').textContent = data.data.total_sent || 0;
                     document.getElementById('sentToday').textContent = data.data.sent_today || 0;
