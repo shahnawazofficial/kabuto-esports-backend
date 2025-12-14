@@ -147,8 +147,8 @@ router.get('/user', auth, async (req, res) => {
                 n.sent_at,
                 nl.read_at,
                 nl.delivered_at
-            FROM notification_logs nl
-            JOIN notifications n ON nl.notification_id = n.notification_id
+            FROM admin_notification_logs nl
+            JOIN admin_notifications n ON nl.notification_id = n.notification_id
             WHERE nl.user_id = ?
             ORDER BY nl.delivered_at DESC
             LIMIT ? OFFSET ?
@@ -158,7 +158,7 @@ router.get('/user', auth, async (req, res) => {
 
         // Get unread count
         const [unreadCount] = await pool.query(
-            `SELECT COUNT(*) as count FROM notification_logs 
+            `SELECT COUNT(*) as count FROM admin_notification_logs 
              WHERE user_id = ? AND read_at IS NULL`,
             [userId]
         );
@@ -187,7 +187,7 @@ router.post('/read/:notificationId', auth, async (req, res) => {
         const notificationId = req.params.notificationId;
 
         await pool.query(
-            `UPDATE notification_logs 
+            `UPDATE admin_notification_logs 
              SET read_at = CURRENT_TIMESTAMP 
              WHERE notification_id = ? AND user_id = ? AND read_at IS NULL`,
             [notificationId, userId]
@@ -212,7 +212,7 @@ router.post('/read-all', auth, async (req, res) => {
         const userId = req.user.user_id;
 
         await pool.query(
-            `UPDATE notification_logs 
+            `UPDATE admin_notification_logs 
              SET read_at = CURRENT_TIMESTAMP 
              WHERE user_id = ? AND read_at IS NULL`,
             [userId]
@@ -319,10 +319,10 @@ router.post('/admin/send', adminAuth, async (req, res) => {
 
         // Save notification to database
         const [notificationResult] = await pool.query(
-            `INSERT INTO notifications 
+            `INSERT INTO admin_notifications 
              (admin_id, notification_type, title, message, target_audience, 
               specific_user_ids, deep_link, tournament_id, send_option, 
-              schedule_time, recipients_count, status)
+              schedule_time, recipients_count, notification_status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 adminId,
@@ -400,7 +400,7 @@ router.post('/admin/send', adminAuth, async (req, res) => {
             );
             
             await pool.query(
-                `INSERT INTO notification_logs (notification_id, user_id) VALUES ?`,
+                `INSERT INTO admin_notification_logs (notification_id, user_id) VALUES ?`,
                 [logValues]
             );
         }
@@ -437,7 +437,7 @@ router.get('/admin/history', adminAuth, async (req, res) => {
             SELECT 
                 n.*,
                 a.username as admin_username
-            FROM notifications n
+            FROM admin_notifications n
             LEFT JOIN admins a ON n.admin_id = a.admin_id
             ORDER BY n.sent_at DESC
             LIMIT ? OFFSET ?
@@ -463,13 +463,13 @@ router.get('/admin/stats', adminAuth, async (req, res) => {
     try {
         // Total sent
         const [totalSent] = await pool.query(
-            `SELECT COUNT(*) as count FROM notifications WHERE status = 'sent'`
+            `SELECT COUNT(*) as count FROM admin_notifications WHERE notification_status = 'sent'`
         );
 
         // Sent today
         const [sentToday] = await pool.query(
-            `SELECT COUNT(*) as count FROM notifications 
-             WHERE status = 'sent' AND DATE(sent_at) = CURDATE()`
+            `SELECT COUNT(*) as count FROM admin_notifications 
+             WHERE notification_status = 'sent' AND DATE(sent_at) = CURDATE()`
         );
 
         // Active users (with FCM tokens)
