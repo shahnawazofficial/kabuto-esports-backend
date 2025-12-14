@@ -244,6 +244,7 @@ router.post('/admin/send', adminAuth, async (req, res) => {
             message,
             target_audience,
             specific_users,
+            user_identifier_type,
             deep_link,
             tournament_id,
             send_option,
@@ -289,10 +290,41 @@ router.post('/admin/send', adminAuth, async (req, res) => {
                 if (!specific_users) {
                     return res.status(400).json({
                         success: false,
-                        message: 'Specific user IDs required'
+                        message: 'Specific user IDs or usernames required'
                     });
                 }
-                targetUserIds = specific_users.split(',').map(id => parseInt(id.trim()));
+                
+                // Check if using usernames or user IDs
+                if (user_identifier_type === 'username') {
+                    // Look up user IDs from usernames
+                    const usernames = specific_users.split(',').map(name => name.trim());
+                    const [users] = await pool.query(
+                        'SELECT user_id FROM users WHERE username IN (?) AND is_active = 1',
+                        [usernames]
+                    );
+                    targetUserIds = users.map(u => u.user_id);
+                    
+                    if (targetUserIds.length === 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'No active users found with the provided usernames'
+                        });
+                    }
+                    
+                    console.log(`🔍 Found ${targetUserIds.length} users from usernames:`, usernames);
+                } else {
+                    // Parse user IDs and filter out invalid ones
+                    targetUserIds = specific_users.split(',')
+                        .map(id => parseInt(id.trim()))
+                        .filter(id => !isNaN(id) && id > 0);
+                    
+                    if (targetUserIds.length === 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Invalid user IDs provided. Please enter numeric user IDs (e.g., 1,2,3)'
+                        });
+                    }
+                }
                 break;
 
             default:

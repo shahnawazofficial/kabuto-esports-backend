@@ -256,10 +256,25 @@
                                             </div>
 
                                             <div class="mb-3" id="specificUsersDiv" style="display:none;">
-                                                <label class="form-label">User IDs (comma-separated)</label>
+                                                <label class="form-label">Identify Users By:</label>
+                                                <div class="mb-2">
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="radio" name="userIdentifier" id="userIdOption" value="user_id" checked>
+                                                        <label class="form-check-label" for="userIdOption">
+                                                            User ID
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="radio" name="userIdentifier" id="usernameOption" value="username">
+                                                        <label class="form-check-label" for="usernameOption">
+                                                            Username
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <label class="form-label" id="specificUsersLabel">User IDs (comma-separated) *</label>
                                                 <input type="text" class="form-control" id="specificUserIds" 
                                                        placeholder="e.g., 1,5,12,45">
-                                                <small class="text-muted">Enter user IDs separated by commas</small>
+                                                <small class="text-muted" id="specificUsersHelp">Enter user IDs separated by commas</small>
                                             </div>
 
                                             <div class="mb-3">
@@ -461,6 +476,25 @@
                 this.value === 'specific' ? 'block' : 'none';
         });
 
+        // Handle user identifier radio button changes
+        document.querySelectorAll('input[name="userIdentifier"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const label = document.getElementById('specificUsersLabel');
+                const input = document.getElementById('specificUserIds');
+                const help = document.getElementById('specificUsersHelp');
+                
+                if (this.value === 'user_id') {
+                    label.textContent = 'User IDs (comma-separated) *';
+                    input.placeholder = 'e.g., 1,5,12,45';
+                    help.textContent = 'Enter user IDs separated by commas';
+                } else {
+                    label.textContent = 'Usernames (comma-separated) *';
+                    input.placeholder = 'e.g., player1,player2,player3';
+                    help.textContent = 'Enter usernames separated by commas';
+                }
+            });
+        });
+
         document.getElementById('deepLink')?.addEventListener('change', function() {
             document.getElementById('tournamentIdDiv').style.display = 
                 this.value === 'specific_tournament' ? 'block' : 'none';
@@ -559,12 +593,15 @@
         document.getElementById('notificationForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const userIdentifierType = document.querySelector('input[name="userIdentifier"]:checked')?.value || 'user_id';
+            
             const formData = {
                 type: document.getElementById('notificationType').value,
                 title: document.getElementById('notificationTitle').value,
                 message: document.getElementById('notificationMessage').value,
                 target_audience: document.getElementById('targetAudience').value,
                 specific_users: document.getElementById('specificUserIds').value,
+                user_identifier_type: userIdentifierType,
                 deep_link: document.getElementById('deepLink').value,
                 tournament_id: document.getElementById('tournamentId').value,
                 send_option: document.getElementById('sendOption').value,
