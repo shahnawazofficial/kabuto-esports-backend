@@ -490,6 +490,31 @@ router.get('/admin/history', adminAuth, async (req, res) => {
     }
 });
 
+// Delete notification (user can delete their own notification logs)
+router.delete('/:notificationId', auth, async (req, res) => {
+    try {
+        const userId = req.user.user_id;
+        const notificationId = req.params.notificationId;
+
+        await pool.query(
+            `DELETE FROM notification_logs 
+             WHERE notification_id = ? AND user_id = ?`,
+            [notificationId, userId]
+        );
+
+        res.json({
+            success: true,
+            message: 'Notification deleted successfully'
+        });
+    } catch (error) {
+        console.error('Delete notification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete notification'
+        });
+    }
+});
+
 // Get notification stats for admin
 router.get('/admin/stats', adminAuth, async (req, res) => {
     try {
