@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
-const { PAYU_CONFIG, generatePayUHash } = require('../config/payu');
 
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
@@ -25,7 +24,7 @@ router.get('/', async (req, res) => {
         if (status) {
             query += ' AND t.tournament_status = ?';
             params.push(status);
-            
+
             // Only show tournaments with valid registration deadline
             if (status === 'registration_open') {
                 query += ' AND t.registration_end > NOW()';
@@ -122,19 +121,19 @@ router.get('/:id', verifyToken, async (req, res) => {
 // ROUTE: Register for Tournament WITH PLAYER DETAILS
 router.post('/:tournamentId/register', verifyToken, async (req, res) => {
     const connection = await db.getConnection();
-    
+
     try {
         const tournamentId = req.params.tournamentId;
         const userId = req.userId;
         const { team_id, registration_type, payment_method, player_details } = req.body;
 
-        console.log('📝 Registration request:', { 
-            tournamentId, 
-            userId, 
-            team_id, 
+        console.log('📝 Registration request:', {
+            tournamentId,
+            userId,
+            team_id,
             registration_type,
             payment_method,
-            has_player_details: !!player_details 
+            has_player_details: !!player_details
         });
 
         // Check if already registered (only block if confirmed, allow re-attempt if pending)
@@ -154,7 +153,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                     already_registered: true
                 });
             }
-            
+
             // If pending, delete it and allow re-registration
             if (existing[0].registration_status === 'pending') {
                 console.log('🔄 Deleting previous pending registration');
@@ -212,7 +211,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
         // ✅ WALLET PAYMENT - Complete immediately with TRANSACTION
         if (payMethod === 'wallet') {
             await connection.beginTransaction();
-            
+
             try {
                 const [wallets] = await connection.query(
                     'SELECT balance FROM wallet WHERE user_id = ?',
@@ -260,9 +259,9 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                       payment_status, registration_status, player_details)
                      VALUES (?, ?, ?, ?, ?, 'completed', 'confirmed', ?)`,
                     [
-                        tournamentId, 
-                        userId, 
-                        team_id || null, 
+                        tournamentId,
+                        userId,
+                        team_id || null,
                         registration_type || 'solo',
                         entryFee,
                         player_details || null
@@ -305,7 +304,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                         registration_status: 'confirmed'
                     }
                 });
-                
+
             } catch (error) {
                 // ✅ ROLLBACK on any error
                 await connection.rollback();
@@ -322,9 +321,9 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
                   payment_method, payment_status, registration_status, player_details)
                  VALUES (?, ?, ?, ?, ?, 'payu', 'pending', 'pending', ?)`,
                 [
-                    tournamentId, 
-                    userId, 
-                    team_id || null, 
+                    tournamentId,
+                    userId,
+                    team_id || null,
                     registration_type || 'solo',
                     entryFee,
                     player_details || null
@@ -339,7 +338,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             // ✅ GENERATE PAYU PAYMENT DATA (same as wallet add money)
             const txnid = `TXN${Date.now()}${userId}`;
             const productinfo = `Tournament Registration - ${tournament.tournament_name}`;
-            
+
             const [users] = await db.query('SELECT username, email, phone FROM users WHERE user_id = ?', [userId]);
             const user = users[0];
 

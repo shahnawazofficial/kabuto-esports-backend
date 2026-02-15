@@ -30,7 +30,6 @@
     "mysql2": "^3.6.5",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.11",
-    "payu-websdk": "^1.3.1",
     "resend": "^6.5.2"
   },
   "devDependencies": {

@@ -8,6 +8,7 @@ const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const path = require("path");   // ← IMPORTANT for serving admin panel
 
+
 // Load environment variables
 dotenv.config();
 
@@ -19,9 +20,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const teamRoutes = require('./routes/teams');
 const tournamentRoutes = require('./routes/tournaments');
-const walletRoutes = require('./routes/wallet');
 const hostRoutes = require('./routes/host');
-const payuRoutes = require('./routes/payu');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 
@@ -88,11 +87,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/tournaments', tournamentRoutes);
-app.use('/api/wallet', walletRoutes);
 app.use('/api/host', hostRoutes);
-app.use('/api/payu', payuRoutes);
 app.use('/api/admin', adminRoutes);
-
 app.use('/api/notifications', notificationRoutes);
 
 app.use('/uploads', express.static('uploads'));
