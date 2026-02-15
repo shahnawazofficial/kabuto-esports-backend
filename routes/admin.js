@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kabuto_admin_secret_key_2024';
 const verifyAdminToken = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
-        
+
         if (!token) {
             return res.status(401).json({
                 success: false,
@@ -19,7 +19,7 @@ const verifyAdminToken = async (req, res, next) => {
         }
 
         const decoded = jwt.verify(token, JWT_SECRET);
-        
+
         // Check if admin exists and is active
         const [admins] = await db.query(
             'SELECT * FROM admins WHERE admin_id = ? AND is_active = true',
@@ -106,9 +106,9 @@ router.post('/login', async (req, res) => {
 
         // Generate token
         const token = jwt.sign(
-            { 
+            {
                 admin_id: admin.admin_id,
-                admin_role: admin.admin_role 
+                admin_role: admin.admin_role
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -437,7 +437,7 @@ router.post('/users/:userId/toggle-active', verifyAdminToken, async (req, res) =
 // Add Money to User Wallet (Super Admin Only)
 router.post('/users/:userId/add-money', verifyAdminToken, verifySuperAdmin, async (req, res) => {
     const connection = await db.getConnection();
-    
+
     try {
         const userId = req.params.userId;
         const { amount, description } = req.body;
@@ -646,10 +646,6 @@ router.post('/tournaments', verifyAdminToken, async (req, res) => {
             registration_start,
             registration_end,
             tournament_start_time,
-            total_prize_pool,
-            first_prize,
-            second_prize,
-            third_prize,
             map_name,
             perspective
         } = req.body;
@@ -658,9 +654,8 @@ router.post('/tournaments', verifyAdminToken, async (req, res) => {
             `INSERT INTO tournaments (
                 tournament_name, tournament_description, host_user_id, game_mode,
                 max_participants, registration_fee, registration_start, registration_end,
-                tournament_start_time, total_prize_pool, first_prize, second_prize, third_prize,
-                tournament_status, map_name, perspective, current_participants
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registration_open', ?, ?, 0)`,
+                tournament_start_time, tournament_status, map_name, perspective, current_participants
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registration_open', ?, ?, 0)`,
             [
                 tournament_name,
                 tournament_description,
@@ -671,10 +666,6 @@ router.post('/tournaments', verifyAdminToken, async (req, res) => {
                 registration_start,
                 registration_end,
                 tournament_start_time,
-                total_prize_pool,
-                first_prize,
-                second_prize,
-                third_prize,
                 map_name,
                 perspective
             ]
@@ -710,8 +701,7 @@ router.put('/tournaments/:tournamentId', verifyAdminToken, async (req, res) => {
         const allowedFields = [
             'tournament_name', 'tournament_description', 'game_mode',
             'max_participants', 'registration_fee', 'registration_start',
-            'registration_end', 'tournament_start_time', 'total_prize_pool',
-            'first_prize', 'second_prize', 'third_prize', 'map_name',
+            'registration_end', 'tournament_start_time', 'map_name',
             'perspective', 'tournament_status'
         ];
 
@@ -1029,7 +1019,7 @@ router.get('/wallet/stats', verifyAdminToken, verifySuperAdmin, async (req, res)
 // Manual Refund (Super Admin Only)
 router.post('/wallet/refund', verifyAdminToken, verifySuperAdmin, async (req, res) => {
     const connection = await db.getConnection();
-    
+
     try {
         const { user_id, amount, description } = req.body;
 
@@ -1106,7 +1096,7 @@ router.post('/wallet/refund', verifyAdminToken, verifySuperAdmin, async (req, re
 // Deduct Money from Wallet (Super Admin Only)
 router.post('/wallet/deduct', verifyAdminToken, verifySuperAdmin, async (req, res) => {
     const connection = await db.getConnection();
-    
+
     try {
         const { user_id, amount, description } = req.body;
 

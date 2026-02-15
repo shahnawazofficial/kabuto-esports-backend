@@ -409,7 +409,7 @@ router.get('/user/registrations', verifyToken, async (req, res) => {
             `SELECT tr.*, 
                     t.tournament_name, t.game_mode, t.tournament_start_time,
                     t.tournament_status, t.room_id, t.room_password,
-                    t.banner_image_url, t.map_name, t.total_prize_pool
+                    t.banner_image_url, t.map_name
              FROM tournament_registrations tr
              JOIN tournaments t ON tr.tournament_id = t.tournament_id
              WHERE tr.user_id = ?
