@@ -23,6 +23,7 @@ const tournamentRoutes = require('./routes/tournaments');
 const hostRoutes = require('./routes/host');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
+const inboxRoutes = require('./routes/inbox');
 
 const app = express();
 
@@ -90,6 +91,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/host', hostRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/inbox', inboxRoutes);
 
 app.use('/uploads', express.static('uploads'));
 
@@ -146,4 +148,3 @@ process.on('SIGINT', () => {
 });
 
 module.exports = app;
-    
