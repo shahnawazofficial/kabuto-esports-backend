@@ -1457,4 +1457,164 @@ router.post('/admins/:adminId/reset-password', verifyAdminToken, verifySuperAdmi
     }
 });
 
+// ==========================================
+// ADMIN INBOX - Send Messages to Users
+// ==========================================
+
+// Send message from admin inbox to specific users
+router.post('/inbox/send', verifyAdminToken, async (req, res) => {
+    try {
+        const {
+            title,
+            message,
+            target_audience,
+            specific_users,
+            user_identifier_type,
+            notification_type,
+            deep_link,
+            tournament_id
+        } = req.body;
+
+        const adminId = req.admin.admin_id;
+
+        console.log('📤 Sending inbox message - Admin:', req.admin.username);
+
+        // Validate required fields
+        if (!title || !message || !target_audience) {
+            return res.status(400).json({
+                success: false,
+                message: 'Title, message, and target audience are required'
+            });
+        }
+
+        // Get target user IDs based on audience
+        let targetUserIds = [];
+        let query = '';
+
+        switch (target_audience) {
+            case 'all':
+                query = 'SELECT user_id FROM users WHERE is_active = 1';
+                break;
+
+            case 'active':
+                query = `SELECT DISTINCT user_id FROM users 
+                         WHERE is_active = 1 AND last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
+                break;
+
+            case 'inactive':
+                query = `SELECT user_id FROM users 
+                         WHERE is_active = 1 AND (last_login < DATE_SUB(NOW(), INTERVAL 7 DAY) OR last_login IS NULL)`;
+                break;
+
+            case 'specific':
+                if (!specific_users) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Specific user IDs or usernames required'
+                    });
+                }
+                
+                // Check if using usernames or user IDs
+                if (user_identifier_type === 'username') {
+                    const usernames = specific_users.split(',').map(name => name.trim());
+                    const [users] = await db.query(
+                        'SELECT user_id FROM users WHERE username IN (?) AND is_active = 1',
+                        [usernames]
+                    );
+                    targetUserIds = users.map(u => u.user_id);
+                    
+                    if (targetUserIds.length === 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'No active users found with the provided usernames'
+                        });
+                    }
+                } else {
+                    targetUserIds = specific_users.split(',')
+                        .map(id => parseInt(id.trim()))
+                        .filter(id => !isNaN(id) && id > 0);
+                    
+                    if (targetUserIds.length === 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Invalid user IDs provided'
+                        });
+                    }
+                }
+                break;
+
+            default:
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid target audience'
+                });
+        }
+
+        // Execute query if not specific users
+        if (target_audience !== 'specific') {
+            const [users] = await db.query(query);
+            targetUserIds = users.map(u => u.user_id);
+        }
+
+        if (targetUserIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No users found for the selected audience'
+            });
+        }
+
+        console.log(`🎯 Target users: ${targetUserIds.length}`);
+
+        // Save notification to database
+        const [notificationResult] = await db.query(
+            `INSERT INTO admin_notifications 
+             (admin_id, notification_type, title, message, target_audience, 
+              specific_user_ids, deep_link, tournament_id, recipients_count, notification_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')`,
+            [
+                adminId,
+                notification_type || 'general',
+                title,
+                message,
+                target_audience,
+                specific_users || null,
+                deep_link || null,
+                tournament_id || null,
+                targetUserIds.length
+            ]
+        );
+
+        const notificationId = notificationResult.insertId;
+
+        // Log deliveries for inbox
+        const logValues = targetUserIds.map(userId => 
+            [notificationId, userId]
+        );
+        
+        await db.query(
+            `INSERT INTO admin_notification_logs (notification_id, user_id) VALUES ?`,
+            [logValues]
+        );
+
+        console.log(`✅ Inbox message saved - ID: ${notificationId}, Recipients: ${targetUserIds.length}`);
+
+        res.json({
+            success: true,
+            message: 'Message sent successfully',
+            data: {
+                notification_id: notificationId,
+                recipients_count: targetUserIds.length
+            }
+        });
+
+    } catch (error) {
+        console.error('Send inbox message error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send message',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
