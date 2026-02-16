@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
-const { verifyToken } = require('../middleware/auth');
+const auth = require('../middleware/auth');
 
 // TODO: Enable googleapis when implementing server-side verification
 // const { google } = require('googleapis');
@@ -11,7 +11,7 @@ const { verifyToken } = require('../middleware/auth');
  * Verify Google Play purchase and complete tournament registration
  * POST /api/payment/verify
  */
-router.post('/verify', verifyToken, async (req, res) => {
+router.post('/verify', auth, async (req, res) => {
     try {
         const { user_id, tournament_id, purchase_token, product_id } = req.body;
 
