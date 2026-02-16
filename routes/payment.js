@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('../middleware/auth');
-const { google } = require('googleapis');
 
+// TODO: Enable googleapis when implementing server-side verification
+// const { google } = require('googleapis');
 // Note: Install googleapis with: npm install googleapis
 
 /**
@@ -102,7 +103,10 @@ router.post('/verify', verifyToken, async (req, res) => {
  * 2. Download JSON key file
  * 3. Grant access to Google Play Developer API
  * 4. Place key file in project root as 'google-play-service-account.json'
+ * 
+ * TODO: Uncomment when ready to implement server-side verification
  */
+/*
 async function verifyGooglePlayPurchase(purchaseToken, productId) {
     try {
         // Initialize Google Auth
@@ -140,5 +144,6 @@ async function verifyGooglePlayPurchase(purchaseToken, productId) {
         return false;
     }
 }
+*/
 
 module.exports = router;
