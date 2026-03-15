@@ -4,7 +4,7 @@ const db = require('../config/database');
 const { verifyToken } = require('./auth');
 
 // Base URL for constructing absolute banner image URLs
-const BASE_URL = process.env.BASE_URL || 'https://kabuto-esports-api.onrender.com';
+const BASE_URL = process.env.BASE_URL || 'http://139.59.1.29';
 
 // Helper: attach full URL to banner_image_url field
 const withBanner = (obj) => ({
@@ -17,7 +17,9 @@ const withBanner = (obj) => ({
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
     try {
-        const status = req.query.status || 'registration_open';
+        // Accept comma-separated statuses, e.g. ?status=registration_open,ongoing
+        // Default: show both registration_open and ongoing tournaments
+        const statusParam = req.query.status;
         const gameMode = req.query.game_mode;
         const limit = parseInt(req.query.limit) || 20;
         const offset = parseInt(req.query.offset) || 0;
@@ -32,14 +34,13 @@ router.get('/', async (req, res) => {
 
         const params = [];
 
-        if (status) {
+        if (statusParam) {
+            // Support single status filter from Android app (e.g. ?status=registration_open)
             query += ' AND t.tournament_status = ?';
-            params.push(status);
-
-            // Only show tournaments with valid registration deadline
-            if (status === 'registration_open') {
-                query += ' AND t.registration_end > NOW()';
-            }
+            params.push(statusParam);
+        } else {
+            // Default: show active tournaments (registration open OR ongoing)
+            query += " AND t.tournament_status IN ('registration_open', 'ongoing')";
         }
 
         if (gameMode) {
@@ -47,10 +48,13 @@ router.get('/', async (req, res) => {
             params.push(gameMode);
         }
 
-        query += ' ORDER BY t.tournament_start_time ASC LIMIT ? OFFSET ?';
+        // Newest tournaments first
+        query += ' ORDER BY t.tournament_id DESC LIMIT ? OFFSET ?';
         params.push(limit, offset);
 
         const [tournaments] = await db.query(query, params);
+
+        console.log(`📋 GET /tournaments — status=${statusParam || 'default'} — found ${tournaments.length}`);
 
         res.json({
             success: true,
