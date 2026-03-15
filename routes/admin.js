@@ -4,33 +4,46 @@ const db = require('../config/database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { v2: cloudinary } = require('cloudinary');
+const { Readable } = require('stream');
 
-// ──────────────────────────────────────────────
-// MULTER — Tournament Banner Upload Config
-// ──────────────────────────────────────────────
-const bannerDir = path.join(__dirname, '../uploads/tournament-banners');
-if (!fs.existsSync(bannerDir)) fs.mkdirSync(bannerDir, { recursive: true });
-
-const bannerStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, bannerDir),
-    filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `banner-${Date.now()}${ext}`);
-    }
+// ──────────────────────────────────────────────────────────
+// CLOUDINARY — Tournament Banner Upload
+// Set these env vars in your Render dashboard:
+//   CLOUDINARY_CLOUD_NAME
+//   CLOUDINARY_API_KEY
+//   CLOUDINARY_API_SECRET
+// ──────────────────────────────────────────────────────────
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Store file in memory, then stream to Cloudinary
 const bannerUpload = multer({
-    storage: bannerStorage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
     fileFilter: (_req, file, cb) => {
-        const allowed = ['.jpg', '.jpeg', '.png', '.webp'];
-        const ext = path.extname(file.originalname).toLowerCase();
-        if (allowed.includes(ext)) cb(null, true);
-        else cb(new Error('Only jpg, jpeg, png, webp images are allowed'));
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (allowed.includes(file.mimetype)) cb(null, true);
+        else cb(new Error('Only jpg, png, webp images are allowed'));
     }
 });
+
+// Helper: upload buffer to Cloudinary and return secure_url
+function uploadToCloudinary(buffer, folder = 'kabuto-esports/tournament-banners') {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            { folder, resource_type: 'image' },
+            (error, result) => {
+                if (error) reject(error);
+                else resolve(result.secure_url);
+            }
+        );
+        Readable.from(buffer).pipe(uploadStream);
+    });
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'kabuto_admin_secret_key_2024';
 
@@ -677,10 +690,17 @@ router.post('/tournaments', verifyAdminToken, bannerUpload.single('banner'), asy
             perspective
         } = req.body;
 
-        // Build banner path if file was uploaded
-        const bannerPath = req.file
-            ? `/uploads/tournament-banners/${req.file.filename}`
-            : null;
+        // Upload banner to Cloudinary (permanent cloud storage — survives Render restarts)
+        let bannerUrl = null;
+        if (req.file) {
+            try {
+                bannerUrl = await uploadToCloudinary(req.file.buffer);
+                console.log('☁️ Banner uploaded to Cloudinary:', bannerUrl);
+            } catch (uploadError) {
+                console.error('❌ Cloudinary upload failed:', uploadError.message);
+                // Continue without banner rather than failing the whole request
+            }
+        }
 
         const [result] = await db.query(
             `INSERT INTO tournaments (
@@ -700,18 +720,18 @@ router.post('/tournaments', verifyAdminToken, bannerUpload.single('banner'), asy
                 tournament_start_time,
                 map_name,
                 perspective,
-                bannerPath
+                bannerUrl
             ]
         );
 
-        console.log(`✅ Tournament created by admin ${req.admin.admin_id}: ${tournament_name} | banner: ${bannerPath}`);
+        console.log(`✅ Tournament created by admin ${req.admin.admin_id}: ${tournament_name} | banner: ${bannerUrl}`);
 
         res.json({
             success: true,
             message: 'Tournament created successfully',
             data: {
                 tournament_id: result.insertId,
-                banner_image_url: bannerPath
+                banner_image_url: bannerUrl
             }
         });
 
