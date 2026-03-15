@@ -56,6 +56,36 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ROUTE: Get My Tournaments (alias — must come BEFORE /:id to avoid 'my' being parsed as an ID)
+router.get('/my', verifyToken, async (req, res) => {
+    try {
+        const [registrations] = await db.query(
+            `SELECT tr.*,
+                    t.tournament_name, t.game_mode, t.tournament_start_time,
+                    t.tournament_status, t.room_id, t.room_password,
+                    t.banner_image_url, t.map_name
+             FROM tournament_registrations tr
+             JOIN tournaments t ON tr.tournament_id = t.tournament_id
+             WHERE tr.user_id = ?
+             ORDER BY t.tournament_start_time DESC`,
+            [req.userId]
+        );
+
+        const registrationsWithDetails = registrations.map(reg => {
+            if (reg.player_details && typeof reg.player_details === 'string') {
+                try { reg.player_details = JSON.parse(reg.player_details); }
+                catch (e) { /* leave as-is */ }
+            }
+            return reg;
+        });
+
+        res.json({ success: true, data: registrationsWithDetails });
+    } catch (error) {
+        console.error('Get my tournaments error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching your tournaments', error: error.message });
+    }
+});
+
 // ROUTE: Get Tournament Details (with user registration check)
 router.get('/:id', verifyToken, async (req, res) => {
     try {
@@ -115,6 +145,46 @@ router.get('/:id', verifyToken, async (req, res) => {
             message: 'Error fetching tournament',
             error: error.message
         });
+    }
+});
+
+// ROUTE: Get User Registration for a Specific Tournament (for pre-filling form)
+router.get('/:id/user-registration', verifyToken, async (req, res) => {
+    try {
+        const tournamentId = req.params.id;
+        const userId = req.userId;
+
+        const [rows] = await db.query(
+            `SELECT registration_type, player_details FROM tournament_registrations
+             WHERE tournament_id = ? AND user_id = ?
+             LIMIT 1`,
+            [tournamentId, userId]
+        );
+
+        if (rows.length === 0) {
+            return res.json({ success: true, data: null });
+        }
+
+        let details = rows[0].player_details;
+        if (details && typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { details = null; }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                registration_type: rows[0].registration_type,
+                team_name: details?.team_name || null,
+                ign: details?.ign || null,
+                in_game_id: details?.in_game_id || null,
+                whatsapp: details?.whatsapp || null,
+                email: details?.email || null,
+                players: details?.players || null
+            }
+        });
+    } catch (error) {
+        console.error('Get user registration error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching registration data', error: error.message });
     }
 });
 
@@ -205,8 +275,48 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             });
         }
 
-        const entryFee = parseFloat(tournament.registration_fee);
+        const entryFee = parseFloat(tournament.registration_fee) || 0;
         const payMethod = payment_method || 'wallet';
+
+        // ✅ FREE TOURNAMENT — skip payment entirely
+        if (entryFee <= 0) {
+            await connection.beginTransaction();
+            try {
+                await connection.query(
+                    `INSERT INTO tournament_registrations
+                     (tournament_id, user_id, team_id, registration_type, registration_fee_paid,
+                      payment_status, registration_status, player_details)
+                     VALUES (?, ?, ?, ?, 0, 'completed', 'confirmed', ?)`,
+                    [tournamentId, userId, team_id || null, registration_type || 'solo', player_details || null]
+                );
+
+                await connection.query(
+                    `UPDATE tournaments SET current_participants = current_participants + 1 WHERE tournament_id = ?`,
+                    [tournamentId]
+                );
+
+                await connection.query(
+                    `INSERT INTO notifications
+                     (user_id, notification_type, title, message, reference_type, reference_id)
+                     VALUES (?, 'tournament_registration', 'Registration Successful', ?, 'tournament', ?)`,
+                    [userId, `Successfully registered for ${tournament.tournament_name}`, tournamentId]
+                );
+
+                await connection.commit();
+                connection.release();
+
+                console.log('✅ Free tournament — Registration confirmed');
+                return res.json({
+                    success: true,
+                    message: 'Registration successful',
+                    data: { tournament_id: tournamentId, registration_status: 'confirmed' }
+                });
+            } catch (err) {
+                await connection.rollback();
+                connection.release();
+                throw err;
+            }
+        }
 
         // ✅ WALLET PAYMENT - Complete immediately with TRANSACTION
         if (payMethod === 'wallet') {
