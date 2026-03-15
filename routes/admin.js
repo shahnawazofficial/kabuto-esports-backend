@@ -3,6 +3,34 @@ const router = express.Router();
 const db = require('../config/database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// ──────────────────────────────────────────────
+// MULTER — Tournament Banner Upload Config
+// ──────────────────────────────────────────────
+const bannerDir = path.join(__dirname, '../uploads/tournament-banners');
+if (!fs.existsSync(bannerDir)) fs.mkdirSync(bannerDir, { recursive: true });
+
+const bannerStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, bannerDir),
+    filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `banner-${Date.now()}${ext}`);
+    }
+});
+
+const bannerUpload = multer({
+    storage: bannerStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    fileFilter: (_req, file, cb) => {
+        const allowed = ['.jpg', '.jpeg', '.png', '.webp'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowed.includes(ext)) cb(null, true);
+        else cb(new Error('Only jpg, jpeg, png, webp images are allowed'));
+    }
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || 'kabuto_admin_secret_key_2024';
 
@@ -634,15 +662,14 @@ router.get('/tournaments/:tournamentId/registrations', verifyAdminToken, async (
     }
 });
 
-// Create New Tournament
-router.post('/tournaments', verifyAdminToken, async (req, res) => {
+// Create New Tournament (multipart/form-data — supports banner upload)
+router.post('/tournaments', verifyAdminToken, bannerUpload.single('banner'), async (req, res) => {
     try {
         const {
             tournament_name,
             tournament_description,
             game_mode,
             max_participants,
-            registration_fee,
             registration_start,
             registration_end,
             tournament_start_time,
@@ -650,34 +677,41 @@ router.post('/tournaments', verifyAdminToken, async (req, res) => {
             perspective
         } = req.body;
 
+        // Build banner path if file was uploaded
+        const bannerPath = req.file
+            ? `/uploads/tournament-banners/${req.file.filename}`
+            : null;
+
         const [result] = await db.query(
             `INSERT INTO tournaments (
                 tournament_name, tournament_description, host_user_id, game_mode,
-                max_participants, registration_fee, registration_start, registration_end,
-                tournament_start_time, tournament_status, map_name, perspective, current_participants
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registration_open', ?, ?, 0)`,
+                max_participants, registration_start, registration_end,
+                tournament_start_time, tournament_status, map_name, perspective,
+                current_participants, banner_image_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registration_open', ?, ?, 0, ?)`,
             [
                 tournament_name,
                 tournament_description,
-                1, // Default host user ID (you can change this)
+                1, // Default host user ID
                 game_mode,
                 max_participants,
-                registration_fee,
                 registration_start,
                 registration_end,
                 tournament_start_time,
                 map_name,
-                perspective
+                perspective,
+                bannerPath
             ]
         );
 
-        console.log(`✅ Tournament created by admin ${req.admin.admin_id}: ${tournament_name}`);
+        console.log(`✅ Tournament created by admin ${req.admin.admin_id}: ${tournament_name} | banner: ${bannerPath}`);
 
         res.json({
             success: true,
             message: 'Tournament created successfully',
             data: {
-                tournament_id: result.insertId
+                tournament_id: result.insertId,
+                banner_image_url: bannerPath
             }
         });
 
@@ -700,9 +734,9 @@ router.put('/tournaments/:tournamentId', verifyAdminToken, async (req, res) => {
         // Build dynamic update query
         const allowedFields = [
             'tournament_name', 'tournament_description', 'game_mode',
-            'max_participants', 'registration_fee', 'registration_start',
+            'max_participants', 'registration_start',
             'registration_end', 'tournament_start_time', 'map_name',
-            'perspective', 'tournament_status'
+            'perspective', 'tournament_status', 'banner_image_url'
         ];
 
         const updateFields = [];

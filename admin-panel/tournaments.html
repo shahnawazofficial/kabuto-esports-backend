@@ -116,7 +116,7 @@
                                     <th>ID</th>
                                     <th>Tournament Name</th>
                                     <th>Mode</th>
-                                    <th>Entry Fee</th>
+                                    <th>Banner</th>
                                     <th>Registrations</th>
                                     <th>Start Date</th>
                                     <th>Status</th>
@@ -188,9 +188,12 @@
                                 <input type="number" class="form-control" id="maxParticipants" required min="1">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Entry Fee (₹) *</label>
-                                <input type="number" class="form-control" id="registrationFee" required min="0"
-                                    step="0.01">
+                                <label class="form-label">Tournament Banner</label>
+                                <input type="file" class="form-control" id="tournamentBanner" accept="image/jpeg,image/png,image/webp">
+                                <small class="text-muted">JPG / PNG / WEBP — max 5 MB</small>
+                                <div id="bannerPreviewContainer" style="display:none;margin-top:8px;">
+                                    <img id="bannerPreview" src="" style="max-width:100%;border-radius:8px;max-height:150px;object-fit:cover;">
+                                </div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Map Name</label>
@@ -365,7 +368,9 @@
                     <td>#${t.tournament_id}</td>
                     <td><strong>${t.tournament_name}</strong></td>
                     <td><span class="badge bg-info">${t.game_mode}</span></td>
-                    <td>₹${parseFloat(t.registration_fee).toFixed(0)}</td>
+                    <td>${t.banner_image_url
+                        ? `<img src="https://kabuto-esports-api.onrender.com${t.banner_image_url}" style="height:40px;border-radius:4px;object-fit:cover;" onerror="this.style.display='none'">`
+                        : '<span class="text-muted">No banner</span>'}</td>
                     <td><strong>${t.total_registrations}/${t.max_participants}</strong></td>
                     <td>${new Date(t.tournament_start_time).toLocaleDateString()}</td>
                     <td>${getStatusBadge(t.tournament_status)}</td>
@@ -424,35 +429,52 @@
         // Show Create Tournament Modal
         function showCreateTournament() {
             document.getElementById('createTournamentForm').reset();
+            document.getElementById('bannerPreviewContainer').style.display = 'none';
             const modal = new bootstrap.Modal(document.getElementById('createTournamentModal'));
             modal.show();
         }
 
-        // Create Tournament Form Submit
+        // Live banner preview
+        document.getElementById('tournamentBanner').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    document.getElementById('bannerPreview').src = ev.target.result;
+                    document.getElementById('bannerPreviewContainer').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                document.getElementById('bannerPreviewContainer').style.display = 'none';
+            }
+        });
+
+        // Create Tournament Form Submit — uses FormData (multipart) for banner upload
         document.getElementById('createTournamentForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const data = {
-                tournament_name: document.getElementById('tournamentName').value,
-                tournament_description: document.getElementById('tournamentDescription').value,
-                game_mode: document.getElementById('gameMode').value,
-                max_participants: parseInt(document.getElementById('maxParticipants').value),
-                registration_fee: parseFloat(document.getElementById('registrationFee').value),
-                map_name: document.getElementById('mapName').value,
-                perspective: document.getElementById('perspective').value,
-                registration_start: document.getElementById('registrationStart').value,
-                registration_end: document.getElementById('registrationEnd').value,
-                tournament_start_time: document.getElementById('tournamentStartTime').value
-            };
+            const formData = new FormData();
+            formData.append('tournament_name', document.getElementById('tournamentName').value);
+            formData.append('tournament_description', document.getElementById('tournamentDescription').value);
+            formData.append('game_mode', document.getElementById('gameMode').value);
+            formData.append('max_participants', document.getElementById('maxParticipants').value);
+            formData.append('map_name', document.getElementById('mapName').value);
+            formData.append('perspective', document.getElementById('perspective').value);
+            formData.append('registration_start', document.getElementById('registrationStart').value);
+            formData.append('registration_end', document.getElementById('registrationEnd').value);
+            formData.append('tournament_start_time', document.getElementById('tournamentStartTime').value);
+
+            const bannerFile = document.getElementById('tournamentBanner').files[0];
+            if (bannerFile) formData.append('banner', bannerFile);
 
             try {
+                // NOTE: Do NOT set Content-Type header — browser sets it with boundary for multipart
                 const response = await fetch(`${API_URL}/admin/tournaments`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${adminToken}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${adminToken}`
                     },
-                    body: JSON.stringify(data)
+                    body: formData
                 });
 
                 const result = await response.json();
