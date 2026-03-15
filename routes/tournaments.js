@@ -275,232 +275,56 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             });
         }
 
-        const entryFee = parseFloat(tournament.registration_fee) || 0;
-        const payMethod = payment_method || 'wallet';
-
-        // ✅ FREE TOURNAMENT — skip payment entirely
-        if (entryFee <= 0) {
-            await connection.beginTransaction();
-            try {
-                await connection.query(
-                    `INSERT INTO tournament_registrations
-                     (tournament_id, user_id, team_id, registration_type, registration_fee_paid,
-                      payment_status, registration_status, player_details)
-                     VALUES (?, ?, ?, ?, 0, 'completed', 'confirmed', ?)`,
-                    [tournamentId, userId, team_id || null, registration_type || 'solo', player_details || null]
-                );
-
-                await connection.query(
-                    `UPDATE tournaments SET current_participants = current_participants + 1 WHERE tournament_id = ?`,
-                    [tournamentId]
-                );
-
-                await connection.query(
-                    `INSERT INTO notifications
-                     (user_id, notification_type, title, message, reference_type, reference_id)
-                     VALUES (?, 'tournament_registration', 'Registration Successful', ?, 'tournament', ?)`,
-                    [userId, `Successfully registered for ${tournament.tournament_name}`, tournamentId]
-                );
-
-                await connection.commit();
-                connection.release();
-
-                console.log('✅ Free tournament — Registration confirmed');
-                return res.json({
-                    success: true,
-                    message: 'Registration successful',
-                    data: { tournament_id: tournamentId, registration_status: 'confirmed' }
-                });
-            } catch (err) {
-                await connection.rollback();
-                connection.release();
-                throw err;
-            }
-        }
-
-        // ✅ WALLET PAYMENT - Complete immediately with TRANSACTION
-        if (payMethod === 'wallet') {
-            await connection.beginTransaction();
-
-            try {
-                const [wallets] = await connection.query(
-                    'SELECT balance FROM wallet WHERE user_id = ?',
-                    [userId]
-                );
-
-                if (wallets.length === 0 || parseFloat(wallets[0].balance) < entryFee) {
-                    await connection.rollback();
-                    connection.release();
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Insufficient wallet balance'
-                    });
-                }
-
-                const balanceBefore = parseFloat(wallets[0].balance);
-                const newBalance = balanceBefore - entryFee;
-
-                // Update wallet balance
-                await connection.query(
-                    'UPDATE wallet SET balance = ?, updated_at = NOW() WHERE user_id = ?',
-                    [newBalance, userId]
-                );
-
-                // Record wallet transaction
-                await connection.query(
-                    `INSERT INTO wallet_transactions 
-                     (user_id, transaction_type, amount, balance_before, balance_after, 
-                      status, payment_method, description)
-                     VALUES (?, 'tournament_entry', ?, ?, ?, 'completed', ?, ?)`,
-                    [
-                        userId,
-                        entryFee,
-                        balanceBefore,
-                        newBalance,
-                        'wallet',
-                        `Tournament entry fee - ${tournament.tournament_name}`
-                    ]
-                );
-
-                // Create registration
-                await connection.query(
-                    `INSERT INTO tournament_registrations 
-                     (tournament_id, user_id, team_id, registration_type, registration_fee_paid, 
-                      payment_status, registration_status, player_details)
-                     VALUES (?, ?, ?, ?, ?, 'completed', 'confirmed', ?)`,
-                    [
-                        tournamentId,
-                        userId,
-                        team_id || null,
-                        registration_type || 'solo',
-                        entryFee,
-                        player_details || null
-                    ]
-                );
-
-                // Update participant count
-                await connection.query(
-                    `UPDATE tournaments 
-                     SET current_participants = current_participants + 1 
-                     WHERE tournament_id = ?`,
-                    [tournamentId]
-                );
-
-                // Send notification
-                await connection.query(
-                    `INSERT INTO notifications 
-                     (user_id, notification_type, title, message, reference_type, reference_id)
-                     VALUES (?, 'tournament_registration', 'Registration Successful', ?, 'tournament', ?)`,
-                    [
-                        userId,
-                        `Successfully registered for ${tournament.tournament_name}`,
-                        tournamentId
-                    ]
-                );
-
-                // ✅ COMMIT EVERYTHING AT ONCE
-                await connection.commit();
-                connection.release();
-
-                console.log('✅ Wallet payment - Registration confirmed');
-
-                return res.json({
-                    success: true,
-                    message: 'Successfully registered for tournament',
-                    data: {
-                        tournament_id: tournamentId,
-                        entry_fee: entryFee,
-                        payment_method: 'wallet',
-                        registration_status: 'confirmed'
-                    }
-                });
-
-            } catch (error) {
-                // ✅ ROLLBACK on any error
-                await connection.rollback();
-                connection.release();
-                throw error;
-            }
-        }
-
-        // ✅ PAYU PAYMENT - Create pending registration and return PayU data (same as wallet add money)
-        if (payMethod === 'payu') {
-            const [result] = await connection.query(
-                `INSERT INTO tournament_registrations 
-                 (tournament_id, user_id, team_id, registration_type, registration_fee_paid, 
-                  payment_method, payment_status, registration_status, player_details)
-                 VALUES (?, ?, ?, ?, ?, 'payu', 'pending', 'pending', ?)`,
+        // ✅ ALL TOURNAMENTS ARE FREE — register directly, no payment required
+        await connection.beginTransaction();
+        try {
+            await connection.query(
+                `INSERT INTO tournament_registrations
+                 (tournament_id, user_id, team_id, registration_type, registration_fee_paid,
+                  payment_status, registration_status, player_details)
+                 VALUES (?, ?, ?, ?, 0, 'completed', 'confirmed', ?)`,
                 [
                     tournamentId,
                     userId,
                     team_id || null,
                     registration_type || 'solo',
-                    entryFee,
                     player_details || null
                 ]
             );
 
-            const registrationId = result.insertId;
+            await connection.query(
+                `UPDATE tournaments
+                 SET current_participants = current_participants + 1
+                 WHERE tournament_id = ?`,
+                [tournamentId]
+            );
+
+            await connection.query(
+                `INSERT INTO notifications
+                 (user_id, notification_type, title, message, reference_type, reference_id)
+                 VALUES (?, 'tournament_registration', 'Registration Successful', ?, 'tournament', ?)`,
+                [userId, `Successfully registered for ${tournament.tournament_name}`, tournamentId]
+            );
+
+            await connection.commit();
             connection.release();
 
-            console.log('⏳ Registration pending - Awaiting PayU payment');
-
-            // ✅ GENERATE PAYU PAYMENT DATA (same as wallet add money)
-            const txnid = `TXN${Date.now()}${userId}`;
-            const productinfo = `Tournament Registration - ${tournament.tournament_name}`;
-
-            const [users] = await db.query('SELECT username, email, phone FROM users WHERE user_id = ?', [userId]);
-            const user = users[0];
-
-            // Use the same PayU config as wallet add money
-            const payuParams = {
-                key: PAYU_CONFIG.merchantKey,
-                txnid: txnid,
-                amount: entryFee.toString(),
-                productinfo: productinfo,
-                firstname: user.username || 'User',
-                email: user.email || `user${userId}@kabutoesports.com`,
-                phone: user.phone || '9999999999',
-                surl: `${process.env.BACKEND_URL || 'https://kabuto-esports-api.onrender.com'}/api/payu/success`,
-                furl: `${process.env.BACKEND_URL || 'https://kabuto-esports-api.onrender.com'}/api/payu/failure`,
-                salt: PAYU_CONFIG.salt
-            };
-
-            // Generate hash using the same function as wallet add money
-            const hash = generatePayUHash(payuParams);
-
-            const payuData = {
-                key: payuParams.key,
-                txnid: payuParams.txnid,
-                amount: payuParams.amount,
-                productinfo: payuParams.productinfo,
-                firstname: payuParams.firstname,
-                email: payuParams.email,
-                phone: payuParams.phone,
-                surl: payuParams.surl,
-                furl: payuParams.furl,
-                hash: hash,
-                payu_url: PAYU_CONFIG.baseUrl + '/_payment'
-            };
-
-            console.log('✅ PayU data generated:', { txnid, amount: entryFee });
+            console.log('✅ Registration confirmed (free tournament):', { tournamentId, userId });
 
             return res.json({
                 success: true,
-                message: 'Registration pending. Please complete payment.',
-                requires_payment: true,
+                message: 'Registration successful',
                 data: {
                     tournament_id: tournamentId,
-                    registration_id: registrationId,
-                    entry_fee: entryFee,
-                    payment_method: 'payu',
-                    registration_status: 'pending'
-                },
-                payu_data: payuData
+                    registration_status: 'confirmed'
+                }
             });
-        }
 
-        connection.release();
+        } catch (err) {
+            await connection.rollback();
+            connection.release();
+            throw err;
+        }
 
     } catch (error) {
         if (connection) connection.release();
