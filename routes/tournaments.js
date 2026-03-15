@@ -3,6 +3,17 @@ const router = express.Router();
 const db = require('../config/database');
 const { verifyToken } = require('./auth');
 
+// Base URL for constructing absolute banner image URLs
+const BASE_URL = process.env.BASE_URL || 'https://kabuto-esports-api.onrender.com';
+
+// Helper: attach full URL to banner_image_url field
+const withBanner = (obj) => ({
+    ...obj,
+    banner_image_url: obj.banner_image_url
+        ? (obj.banner_image_url.startsWith('http') ? obj.banner_image_url : `${BASE_URL}${obj.banner_image_url}`)
+        : null
+});
+
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
     try {
@@ -43,7 +54,7 @@ router.get('/', async (req, res) => {
 
         res.json({
             success: true,
-            data: tournaments
+            data: tournaments.map(withBanner)
         });
 
     } catch (error) {
@@ -76,7 +87,7 @@ router.get('/my', verifyToken, async (req, res) => {
                 try { reg.player_details = JSON.parse(reg.player_details); }
                 catch (e) { /* leave as-is */ }
             }
-            return reg;
+            return withBanner(reg);
         });
 
         res.json({ success: true, data: registrationsWithDetails });
@@ -130,12 +141,12 @@ router.get('/:id', verifyToken, async (req, res) => {
 
         res.json({
             success: true,
-            data: {
+            data: withBanner({
                 ...tournaments[0],
                 registered_count: participantCount[0].count,
                 is_registered: isRegistered,
                 registration_status: registrationStatus
-            }
+            })
         });
 
     } catch (error) {
