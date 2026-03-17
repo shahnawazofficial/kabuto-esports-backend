@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
             SELECT t.*, u.username as host_username, u.full_name as host_name,
                    (SELECT AVG(rating) FROM host_ratings WHERE host_user_id = t.host_user_id) as host_rating
             FROM tournaments t
-            JOIN users u ON t.host_user_id = u.user_id
+            LEFT JOIN users u ON t.host_user_id = u.user_id
             WHERE 1=1
         `;
 
@@ -36,12 +36,18 @@ router.get('/', async (req, res) => {
 
         if (statusParam) {
             // Support single status filter from Android app (e.g. ?status=registration_open)
-            query += ' AND t.tournament_status = ?';
-            params.push(statusParam);
-        } else {
-            // Default: show active tournaments (registration open OR ongoing)
-            query += " AND t.tournament_status IN ('registration_open', 'ongoing')";
+            // Also support comma-separated: ?status=registration_open,ongoing
+            const statuses = statusParam.split(',').map(s => s.trim()).filter(Boolean);
+            if (statuses.length === 1) {
+                query += ' AND t.tournament_status = ?';
+                params.push(statuses[0]);
+            } else {
+                const placeholders = statuses.map(() => '?').join(', ');
+                query += ` AND t.tournament_status IN (${placeholders})`;
+                params.push(...statuses);
+            }
         }
+        // No default filter — return ALL tournaments when no status param is given
 
         if (gameMode) {
             query += ' AND t.game_mode = ?';
@@ -274,7 +280,7 @@ router.post('/:tournamentId/register', verifyToken, async (req, res) => {
             });
         }
 
-        if (new Date() > new Date(tournament.registration_end)) {
+        if (tournament.registration_end && new Date() > new Date(tournament.registration_end)) {
             connection.release();
             return res.status(400).json({
                 success: false,
