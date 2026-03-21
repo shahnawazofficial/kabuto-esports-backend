@@ -369,7 +369,7 @@
                     <td><strong>${t.tournament_name}</strong></td>
                     <td><span class="badge bg-info">${t.game_mode}</span></td>
                     <td>${t.banner_image_url
-                        ? `<img src="https://kabuto-esports-api.onrender.com${t.banner_image_url}" style="height:40px;border-radius:4px;object-fit:cover;" onerror="this.style.display='none'">`
+                        ? `<img src="http://139.59.1.29:5000${t.banner_image_url}" style="height:40px;border-radius:4px;object-fit:cover;" onerror="this.style.display='none'">`
                         : '<span class="text-muted">No banner</span>'}</td>
                     <td><strong>${t.total_registrations}/${t.max_participants}</strong></td>
                     <td>${new Date(t.tournament_start_time).toLocaleDateString()}</td>
