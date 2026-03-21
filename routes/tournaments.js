@@ -17,50 +17,52 @@ const withBanner = (obj) => ({
 // ROUTE: Get All Tournaments (Browse)
 router.get('/', async (req, res) => {
     try {
-        // Accept comma-separated statuses, e.g. ?status=registration_open,ongoing
-        // Default: show both registration_open and ongoing tournaments
         const statusParam = req.query.status;
         const gameMode = req.query.game_mode;
         const limit = parseInt(req.query.limit) || 20;
         const offset = parseInt(req.query.offset) || 0;
 
-        let query = `
-            SELECT t.*, u.username as host_username, u.full_name as host_name,
-                   (SELECT AVG(rating) FROM host_ratings WHERE host_user_id = t.host_user_id) as host_rating
-            FROM tournaments t
-            LEFT JOIN users u ON t.host_user_id = u.user_id
-            WHERE 1=1
-        `;
+        console.log(`📋 GET /tournaments called — status="${statusParam || 'none'}" gameMode="${gameMode || 'none'}" limit=${limit} offset=${offset}`);
 
+        // ⚠️  Removed LEFT JOIN users — not needed for listing and avoids empty results
+        //     when host_user_id doesn't match any real user row.
+        let query = `SELECT * FROM tournaments WHERE 1=1`;
         const params = [];
 
         if (statusParam) {
-            // Support single status filter from Android app (e.g. ?status=registration_open)
-            // Also support comma-separated: ?status=registration_open,ongoing
+            // Support single or comma-separated statuses:
+            //   ?status=registration_open
+            //   ?status=registration_open,ongoing
             const statuses = statusParam.split(',').map(s => s.trim()).filter(Boolean);
             if (statuses.length === 1) {
-                query += ' AND t.tournament_status = ?';
+                query += ' AND tournament_status = ?';
                 params.push(statuses[0]);
             } else {
                 const placeholders = statuses.map(() => '?').join(', ');
-                query += ` AND t.tournament_status IN (${placeholders})`;
+                query += ` AND tournament_status IN (${placeholders})`;
                 params.push(...statuses);
             }
         }
         // No default filter — return ALL tournaments when no status param is given
 
         if (gameMode) {
-            query += ' AND t.game_mode = ?';
+            query += ' AND game_mode = ?';
             params.push(gameMode);
         }
 
         // Newest tournaments first
-        query += ' ORDER BY t.tournament_id DESC LIMIT ? OFFSET ?';
+        query += ' ORDER BY tournament_id DESC LIMIT ? OFFSET ?';
         params.push(limit, offset);
+
+        console.log(`🔍 SQL: ${query}`);
+        console.log(`🔍 Params: ${JSON.stringify(params)}`);
 
         const [tournaments] = await db.query(query, params);
 
-        console.log(`📋 GET /tournaments — status=${statusParam || 'default'} — found ${tournaments.length}`);
+        console.log(`✅ GET /tournaments — found ${tournaments.length} tournament(s)`);
+        if (tournaments.length > 0) {
+            console.log(`   First row: id=${tournaments[0].tournament_id} name="${tournaments[0].tournament_name}" status="${tournaments[0].tournament_status}"`);
+        }
 
         res.json({
             success: true,
@@ -68,12 +70,42 @@ router.get('/', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get tournaments error:', error);
+        console.error('❌ Get tournaments error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching tournaments',
             error: error.message
         });
+    }
+});
+
+// ROUTE: Debug — Returns raw tournament data + DB status (no auth, no filters)
+// Visit: GET /api/tournaments/debug
+router.get('/debug', async (req, res) => {
+    try {
+        // Count ALL rows
+        const [countRows] = await db.query('SELECT COUNT(*) as total FROM tournaments');
+        const total = countRows[0].total;
+
+        // Get first 10 rows unfiltered
+        const [rows] = await db.query(
+            'SELECT tournament_id, tournament_name, tournament_status, tournament_start_time, created_at FROM tournaments ORDER BY tournament_id DESC LIMIT 10'
+        );
+
+        // Get distinct status values in DB
+        const [statuses] = await db.query('SELECT DISTINCT tournament_status FROM tournaments');
+
+        res.json({
+            success: true,
+            debug: {
+                total_tournaments_in_db: total,
+                distinct_status_values: statuses.map(r => r.tournament_status),
+                latest_10: rows
+            }
+        });
+    } catch (error) {
+        console.error('Debug endpoint error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
