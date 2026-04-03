@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 // ============================================
 
 // 👉 This allows accessing admin panel from ANY device
-// Example: http://139.59.1.29:5000/admin
+// Example: http://139.59.1.29:3000/admin
 app.use(
     "/admin",
     express.static(path.join(__dirname, "admin-panel"))

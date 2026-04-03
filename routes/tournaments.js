@@ -4,7 +4,7 @@ const db = require('../config/database');
 const { verifyToken } = require('./auth');
 
 // Base URL for constructing absolute banner image URLs
-const BASE_URL = process.env.BASE_URL || 'http://139.59.1.29';
+const BASE_URL = process.env.BASE_URL || 'http://139.59.1.29:3000';
 
 // Helper: attach full URL to banner_image_url field
 const withBanner = (obj) => ({

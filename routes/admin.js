@@ -49,8 +49,9 @@ const verifyAdminToken = async (req, res, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
 
         // Check if admin exists and is active
+        // NOTE: is_active may be NULL in migrated rows — treat NULL as active
         const [admins] = await db.query(
-            'SELECT * FROM admins WHERE admin_id = ? AND is_active = true',
+            'SELECT * FROM admins WHERE admin_id = ? AND (is_active = 1 OR is_active IS NULL)',
             [decoded.admin_id]
         );
 
@@ -93,13 +94,23 @@ router.post('/login', async (req, res) => {
 
         console.log('🔐 Admin login attempt:', username);
 
-        // Find admin by username
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username/email and password are required'
+            });
+        }
+
+        // Find admin by username OR email (supports both login methods)
         const [admins] = await db.query(
-            'SELECT * FROM admins WHERE username = ?',
-            [username]
+            'SELECT * FROM admins WHERE username = ? OR email = ?',
+            [username, username]
         );
 
+        console.log(`🔍 Admin lookup for "${username}": found ${admins.length} record(s)`);
+
         if (admins.length === 0) {
+            console.log('❌ Admin not found:', username);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid username or password'
@@ -108,16 +119,29 @@ router.post('/login', async (req, res) => {
 
         const admin = admins[0];
 
-        // Check if admin is active
-        if (!admin.is_active) {
+        console.log(`📋 Admin found: id=${admin.admin_id}, username=${admin.username}, is_active=${admin.is_active}`);
+
+        // Check if admin is explicitly disabled (is_active = 0 or false)
+        // NULL is treated as active for migrated rows from previous deployment
+        if (admin.is_active === 0 || admin.is_active === false) {
+            console.log('❌ Admin account is disabled:', username);
             return res.status(401).json({
                 success: false,
                 message: 'Account has been disabled'
             });
         }
 
-        // Verify password
+        // Verify password against the `password` column
+        if (!admin.password) {
+            console.error('❌ Admin record has no password hash stored for:', username);
+            return res.status(500).json({
+                success: false,
+                message: 'Account configuration error. Please contact support.'
+            });
+        }
+
         const isValidPassword = await bcrypt.compare(password, admin.password);
+        console.log(`🔑 Password check for "${username}": ${isValidPassword ? 'PASS' : 'FAIL'}`);
 
         if (!isValidPassword) {
             return res.status(401).json({
@@ -142,7 +166,7 @@ router.post('/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        console.log('✅ Admin login successful:', username);
+        console.log('✅ Admin login successful:', admin.username);
 
         res.json({
             success: true,
@@ -160,7 +184,7 @@ router.post('/login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Admin login error:', error);
+        console.error('❌ Admin login error:', error);
         res.status(500).json({
             success: false,
             message: 'Login failed',
