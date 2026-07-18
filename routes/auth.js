@@ -643,5 +643,73 @@ router.post('/upload-banner', verifyToken, upload.single('image'), async (req, r
     }
 });
 
+// ===============================
+// DELETE ACCOUNT (required by Google Play Data Deletion Policy)
+// ===============================
+router.delete('/account', verifyToken, async (req, res) => {
+    try {
+        const userId = req.userId;
+        console.log('🗑️ Account deletion request for user ID:', userId);
+
+        // Fetch user profile and image paths before deletion
+        const [users] = await db.query(
+            'SELECT profile_image_url, banner_image_url FROM users WHERE user_id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const user = users[0];
+
+        // Delete related data in dependency order
+        await db.query('DELETE FROM tournament_registrations WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM team_members WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
+        await db.query('DELETE FROM inbox_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+
+        // Delete user record
+        await db.query('DELETE FROM users WHERE user_id = ?', [userId]);
+
+        console.log('✅ User account and all associated data deleted for ID:', userId);
+
+        // Best-effort: delete uploaded image files from filesystem
+        const deleteLocalFile = (fileUrl) => {
+            try {
+                if (!fileUrl) return;
+                const relativePath = fileUrl.replace(/^https?:\/\/[^/]+\//, '');
+                const fullPath = path.join(__dirname, '..', relativePath);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                    console.log('🗑️ Deleted file:', fullPath);
+                }
+            } catch (fileErr) {
+                console.warn('⚠️ Could not delete file:', fileErr.message);
+            }
+        };
+
+        deleteLocalFile(user.profile_image_url);
+        deleteLocalFile(user.banner_image_url);
+
+        return res.json({
+            success: true,
+            message: 'Your account and all associated data have been permanently deleted.',
+            data: null
+        });
+
+    } catch (error) {
+        console.error('❌ Delete account error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during account deletion. Please try again later.',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
 module.exports.verifyToken = verifyToken;

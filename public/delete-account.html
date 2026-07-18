@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delete Account – Kabuto Esports</title>
+    <meta name="description" content="Request permanent deletion of your Kabuto Esports account and all associated data." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --primary:      #ff6b00;
+            --primary-dim:  rgba(255,107,0,0.15);
+            --danger:       #e53935;
+            --danger-dim:   rgba(229,57,53,0.15);
+            --danger-dark:  #b71c1c;
+            --bg:           #0a0a0f;
+            --bg-card:      #13131a;
+            --bg-elevated:  #1c1c28;
+            --border:       rgba(255,255,255,0.07);
+            --text:         #f0f0f5;
+            --text-muted:   #7a7a96;
+            --text-dim:     #4a4a62;
+            --radius:       14px;
+            --shadow:       0 24px 64px rgba(0,0,0,0.6);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 60px;
+            background-image:
+                radial-gradient(ellipse 80% 40% at 50% -10%, rgba(255,107,0,0.08) 0%, transparent 70%),
+                radial-gradient(ellipse 60% 30% at 80% 90%, rgba(229,57,53,0.05) 0%, transparent 60%);
+        }
+
+        /* ─── HEADER ─── */
+        header {
+            width: 100%;
+            max-width: 520px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 20px 0 36px;
+        }
+
+        .logo-mark {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary) 0%, #ff3a00 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 18px;
+            color: #fff;
+            flex-shrink: 0;
+            box-shadow: 0 0 24px rgba(255,107,0,0.35);
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-text span:first-child {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .logo-text span:last-child {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        /* ─── CARD ─── */
+        .card {
+            width: 100%;
+            max-width: 520px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--danger) 40%, var(--primary) 60%, transparent);
+        }
+
+        .card-body {
+            padding: 40px 36px;
+        }
+
+        /* ─── STEP INDICATOR ─── */
+        .steps {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+
+        .step {
+            flex: 1;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--bg-elevated);
+            transition: background 0.4s ease;
+        }
+
+        .step.active { background: var(--danger); }
+        .step.done   { background: var(--primary); }
+
+        .step-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        /* ─── WARNING BANNER ─── */
+        .warning-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: var(--danger-dim);
+            border: 1px solid rgba(229,57,53,0.25);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 28px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .warning-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--danger);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .warning-text h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ef9a9a;
+            margin-bottom: 4px;
+        }
+
+        .warning-text p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* ─── SECTION TITLE ─── */
+        .section-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .section-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            line-height: 1.6;
+        }
+
+        /* ─── FORM ─── */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        input[type="email"],
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 15px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none;
+        }
+
+        input:focus {
+            border-color: rgba(229,57,53,0.5);
+            box-shadow: 0 0 0 3px rgba(229,57,53,0.1);
+        }
+
+        input::placeholder { color: var(--text-dim); }
+
+        /* ─── CHECKBOX CONFIRM ─── */
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 24px 0;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            accent-color: var(--danger);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .checkbox-group span {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .checkbox-group span b { color: var(--text); }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.3px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, var(--danger-dark) 100%);
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(229,57,53,0.3);
+        }
+
+        .btn-danger:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 30px rgba(229,57,53,0.4);
+        }
+
+        .btn-danger:not(:disabled):active { transform: translateY(0); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            margin-top: 10px;
+        }
+
+        .btn-ghost:hover {
+            background: var(--bg-elevated);
+            color: var(--text);
+        }
+
+        /* ─── WHAT GETS DELETED LIST ─── */
+        .deletion-list {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .deletion-list li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .deletion-list li:last-child { border-bottom: none; }
+
+        .deletion-list .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+            flex-shrink: 0;
+        }
+
+        /* ─── SUCCESS / ERROR STATES ─── */
+        .state-screen {
+            text-align: center;
+            padding: 20px 0;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .state-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 20px;
+        }
+
+        .state-icon.success { background: rgba(76,175,80,0.15); border: 2px solid rgba(76,175,80,0.3); }
+        .state-icon.error   { background: var(--danger-dim); border: 2px solid rgba(229,57,53,0.3); }
+
+        .state-screen h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .state-screen p  { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+
+        /* ─── LOADER ─── */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        /* ─── POLICY INFO ─── */
+        .policy-info {
+            width: 100%;
+            max-width: 520px;
+            margin-top: 24px;
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+
+        .policy-info h4 {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .policy-info p {
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.7;
+        }
+
+        .policy-info a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* ─── FOOTER ─── */
+        footer {
+            width: 100%;
+            max-width: 520px;
+            margin-top: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        footer a { color: var(--text-muted); text-decoration: none; }
+        footer a:hover { color: var(--primary); }
+
+        /* ─── ANIMATIONS ─── */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .slide-in {
+            animation: fadeIn 0.35s ease forwards;
+        }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 540px) {
+            .card-body { padding: 28px 20px; }
+            .section-title { font-size: 19px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="logo-mark">K</div>
+        <div class="logo-text">
+            <span>Kabuto Esports</span>
+            <span>Data Deletion Center</span>
+        </div>
+    </header>
+
+    <!-- MAIN CARD -->
+    <main class="card" role="main">
+        <div class="card-body">
+
+            <!-- STEP PROGRESS -->
+            <div class="steps" id="stepProgress">
+                <div class="step active" id="step1bar"></div>
+                <div class="step"        id="step2bar"></div>
+                <div class="step"        id="step3bar"></div>
+            </div>
+
+            <!-- ═══════════════════════════════════ -->
+            <!--  STEP 1 — Enter credentials          -->
+            <!-- ═══════════════════════════════════ -->
+            <div id="stepOne" class="slide-in">
+
+                <div class="warning-banner">
+                    <div class="warning-icon">⚠️</div>
+                    <div class="warning-text">
+                        <h3>Permanent Action</h3>
+                        <p>Deleting your account is <strong>irreversible</strong>. All your data will be permanently removed from our servers.</p>
+                    </div>
+                </div>
+
+                <div class="step-label">Step 1 of 3 — Identify</div>
+                <h1 class="section-title">Delete Your Account</h1>
+                <p class="section-subtitle">Enter your registered email and password to verify your identity before we proceed.</p>
+
+                <form id="formStep1" novalidate>
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="you@example.com" autocomplete="email" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Your account password" autocomplete="current-password" required />
+                    </div>
+                    <div id="errorMsg" style="display:none; color:#ef9a9a; font-size:13px; margin-bottom:14px; padding:12px; background:var(--danger-dim); border-radius:8px;"></div>
+                    <button type="submit" class="btn btn-danger" id="btnStep1">Continue</button>
+                </form>
+
+            </div>
+
+            <!-- ═══════════════════════════════════ -->
+            <!--  STEP 2 — What gets deleted          -->
+            <!-- ═══════════════════════════════════ -->
+            <div id="stepTwo" style="display:none;">
+
+                <div class="step-label">Step 2 of 3 — Review</div>
+                <h2 class="section-title">What Will Be Deleted?</h2>
+                <p class="section-subtitle">The following data associated with your account will be <strong style="color:var(--danger)">permanently removed</strong>:</p>
+
+                <ul class="deletion-list">
+                    <li><span class="dot"></span>Your profile, username, email and personal information</li>
+                    <li><span class="dot"></span>Profile picture and banner image</li>
+                    <li><span class="dot"></span>All tournament registrations and match history</li>
+                    <li><span class="dot"></span>Team memberships and team records</li>
+                    <li><span class="dot"></span>All inbox messages and notifications</li>
+                    <li><span class="dot"></span>BGMI ID, stats and linked game accounts</li>
+                </ul>
+
+                <label class="checkbox-group">
+                    <input type="checkbox" id="confirmCheck" />
+                    <span>I understand that this action is <b>permanent and irreversible</b>. I want to permanently delete my Kabuto Esports account.</span>
+                </label>
+
+                <div id="errorMsg2" style="display:none; color:#ef9a9a; font-size:13px; margin-bottom:14px; padding:12px; background:var(--danger-dim); border-radius:8px;"></div>
+
+                <button class="btn btn-danger" id="btnConfirmDelete" disabled>Delete My Account</button>
+                <button class="btn btn-ghost" id="btnGoBack">← Go Back</button>
+
+            </div>
+
+            <!-- ═══════════════════════════════════ -->
+            <!--  STEP 3 — Result                     -->
+            <!-- ═══════════════════════════════════ -->
+            <div id="stepThree" style="display:none;">
+                <!-- Success or Error rendered here -->
+            </div>
+
+        </div>
+    </main>
+
+    <!-- POLICY NOTE -->
+    <aside class="policy-info" aria-label="Privacy Policy Information">
+        <h4>Google Play Data Deletion Policy</h4>
+        <p>
+            In compliance with <strong style="color:var(--text-muted)">Google Play's Data Deletion policy</strong>, Kabuto Esports provides
+            this page for users to permanently delete their account and all associated personal data.
+            Deletion is processed immediately upon confirmation. For questions, contact
+            <a href="mailto:support@kabutoesports.com">support@kabutoesports.com</a>.
+        </p>
+    </aside>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>© 2024 Kabuto Esports · <a href="#">Privacy Policy</a> · <a href="#">Terms of Service</a></p>
+    </footer>
+
+    <script>
+        // ─────────────────────────────────────────────
+        // CONFIG — update if your server URL changes
+        // ─────────────────────────────────────────────
+        const API_BASE = window.location.origin;   // same server
+
+        // ─── DOM refs ───
+        const stepOne   = document.getElementById('stepOne');
+        const stepTwo   = document.getElementById('stepTwo');
+        const stepThree = document.getElementById('stepThree');
+
+        const step1bar  = document.getElementById('step1bar');
+        const step2bar  = document.getElementById('step2bar');
+        const step3bar  = document.getElementById('step3bar');
+
+        const formStep1       = document.getElementById('formStep1');
+        const emailInput      = document.getElementById('email');
+        const passwordInput   = document.getElementById('password');
+        const btnStep1        = document.getElementById('btnStep1');
+        const errorMsg        = document.getElementById('errorMsg');
+
+        const confirmCheck    = document.getElementById('confirmCheck');
+        const btnConfirmDelete= document.getElementById('btnConfirmDelete');
+        const btnGoBack       = document.getElementById('btnGoBack');
+        const errorMsg2       = document.getElementById('errorMsg2');
+
+        let authToken = null;  // stored after login
+
+        // ─── Helpers ───
+        function showError(el, msg) {
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function hideError(el) { el.style.display = 'none'; }
+
+        function setLoading(btn, loading, text) {
+            btn.disabled = loading;
+            btn.innerHTML = loading
+                ? `<span class="spinner"></span>${text}`
+                : text;
+        }
+
+        function goToStep(n) {
+            stepOne.style.display   = 'none';
+            stepTwo.style.display   = 'none';
+            stepThree.style.display = 'none';
+
+            step1bar.className = 'step' + (n >= 1 ? (n > 1 ? ' done' : ' active') : '');
+            step2bar.className = 'step' + (n >= 2 ? (n > 2 ? ' done' : ' active') : '');
+            step3bar.className = 'step' + (n >= 3 ? ' active' : '');
+
+            if (n === 1) { stepOne.style.display   = 'block'; stepOne.classList.add('slide-in'); }
+            if (n === 2) { stepTwo.style.display   = 'block'; stepTwo.classList.add('slide-in'); }
+            if (n === 3) { stepThree.style.display = 'block'; stepThree.classList.add('slide-in'); }
+        }
+
+        // ─── STEP 1: Verify credentials via login ───
+        formStep1.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError(errorMsg);
+
+            const email    = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!email || !password) {
+                showError(errorMsg, 'Please enter your email and password.');
+                return;
+            }
+
+            setLoading(btnStep1, true, 'Verifying…');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: email, password })
+                });
+
+                const json = await res.json();
+
+                if (res.ok && json.success && json.data?.token) {
+                    authToken = json.data.token;
+                    goToStep(2);
+                } else {
+                    showError(errorMsg, json.message || 'Invalid email or password. Please try again.');
+                }
+            } catch (err) {
+                showError(errorMsg, 'Network error. Please check your connection and try again.');
+            } finally {
+                setLoading(btnStep1, false, 'Continue');
+            }
+        });
+
+        // ─── STEP 2: Checkbox enables button ───
+        confirmCheck.addEventListener('change', () => {
+            btnConfirmDelete.disabled = !confirmCheck.checked;
+        });
+
+        btnGoBack.addEventListener('click', () => goToStep(1));
+
+        // ─── STEP 2: Confirm deletion ───
+        btnConfirmDelete.addEventListener('click', async () => {
+            if (!authToken) { goToStep(1); return; }
+            hideError(errorMsg2);
+            setLoading(btnConfirmDelete, true, 'Deleting account…');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/account`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const json = await res.json();
+
+                goToStep(3);
+
+                if (res.ok && json.success) {
+                    stepThree.innerHTML = `
+                        <div class="state-screen">
+                            <div class="state-icon success">✅</div>
+                            <h2>Account Deleted</h2>
+                            <p style="margin-top:8px;">
+                                Your Kabuto Esports account and <strong>all associated data</strong>
+                                have been permanently deleted from our servers.<br /><br />
+                                We're sorry to see you go. If you ever change your mind,
+                                you can create a new account in the app.
+                            </p>
+                            <div style="margin-top:28px; padding:16px; background:var(--bg-elevated); border-radius:10px; font-size:13px; color:var(--text-muted);">
+                                🕐 Deletion completed at ${new Date().toUTCString()}
+                            </div>
+                        </div>`;
+                } else {
+                    stepThree.innerHTML = `
+                        <div class="state-screen">
+                            <div class="state-icon error">❌</div>
+                            <h2>Deletion Failed</h2>
+                            <p style="margin-top:8px; color:var(--text-muted);">
+                                ${json.message || 'An unexpected error occurred. Please try again later.'}
+                            </p>
+                            <button class="btn btn-ghost" style="margin-top:24px;" onclick="location.reload()">
+                                Try Again
+                            </button>
+                        </div>`;
+                }
+            } catch (err) {
+                goToStep(3);
+                stepThree.innerHTML = `
+                    <div class="state-screen">
+                        <div class="state-icon error">❌</div>
+                        <h2>Network Error</h2>
+                        <p style="margin-top:8px; color:var(--text-muted);">
+                            Could not connect to the server. Please check your internet connection and try again.
+                        </p>
+                        <button class="btn btn-ghost" style="margin-top:24px;" onclick="location.reload()">
+                            Retry
+                        </button>
+                    </div>`;
+            }
+        });
+    </script>
+</body>
+</html>

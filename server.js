@@ -57,6 +57,16 @@ app.get("/admin", (req, res) => {
 });
 
 // ============================================
+// SERVE PUBLIC PAGES (Data Deletion, etc.)
+// ============================================
+app.use("/public", express.static(path.join(__dirname, "public")));
+
+// Google Play Data Deletion page — accessible at /delete-account
+app.get("/delete-account", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "delete-account.html"));
+});
+
+// ============================================
 // ROOT ROUTE
 // ============================================
 app.get('/', (req, res) => {
@@ -93,7 +103,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/inbox', inboxRoutes);
 
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
 // ERROR HANDLING
